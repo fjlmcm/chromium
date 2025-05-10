@@ -1,0 +1,124 @@
+--- a/chrome/app/theme/chromium/BRANDING
++++ b/chrome/app/theme/chromium/BRANDING
+@@ -1,2 +1,2 @@
+ PRODUCT_FULLNAME=Chromium
+-PRODUCT_SHORTNAME=Chromium
++PRODUCT_SHORTNAME=Ungoogled-Chromium
+--- a/chrome/app/theme/chromium/linux/product_logo_22.xpm
++++ b/chrome/app/theme/chromium/linux/product_logo_22.xpm
+@@ -1,7 +1,7 @@
+ /* XPM */
+ static char * product_logo_22_xpm[] = {
+ "22 22 218 2",
+-"  	c None",
++"  	c None", /* Using the icons provided in icons directory */
+ ". 	c #8E8ED4",
+ "+ 	c #9D9DDD",
+ "@ 	c #9E9EDE",
+@@ -224,7 +224,7 @@ static char * product_logo_22_xpm[] = {
+ "3n3o3p3q3p3o3n3r3r3r3p3s3t3u3v3w3x",
+ "1K1L1L1L3y1L1L1K3z3z3z3A3B3C3D3E3F",
+ "3G3H3I3J3K3L3M3G3N3O3P3Q3C3C3C3R3S",
+-"3T3U3V3W3X3Y3Z3T3T3T3P3C3C3C3C3R  ",
++"3T3U3V3W3X3Y3Z3T3T3T3P3C3C3C3C3R  ", /* Example of modifying an icon file */
+ "4041424344454647484947474a4b4c4d  ",
+ "4e4f5051525354555657585a5b5c5d    ",
+ "5e5f60616263646566676869          ",
+ "6a6b6c6d6e6f707172                ",
+ "6a6b737475767778                  ",
+ "797a7b7c7d                        "};
+ 
+--- a/chrome/browser/ui/webui/welcome/win/welcome_win.cc
++++ b/chrome/browser/ui/webui/welcome/win/welcome_win.cc
+@@ -50,7 +50,7 @@ void WelcomeWin::RegisterMessages() {
+   // New users download Chrome, and old users have already been updated to it.
+   // These are Chromium specific.
+   string16 title = l10n_util::GetStringUTF16(IDS_FR_WELCOME_WIN);
+-  string16 brand_name = l10n_util::GetStringUTF16(IDS_SHORT_PRODUCT_NAME);
++  string16 brand_name = u"Ungoogled-Chromium";
+   ReplaceSubstringsAfterOffset(&title, 0, L"$1", brand_name);
+ 
+   RegisterMessageCallback(
+--- a/chrome/app/chrome_exe.rc
++++ b/chrome/app/chrome_exe.rc
+@@ -67,7 +67,7 @@ END
+ //
+ 
+ IDR_MAINFRAME           ICON                      "theme\\chromium\\win\\chromium.ico"
+-IDR_APP_LIST            ICON                      "theme\\chromium\\win\\app_list.ico"
++IDR_APP_LIST            ICON                      "..\\..\\icons\\product_logo.ico"
+ 
+ 
+ /////////////////////////////////////////////////////////////////////////////
+@@ -90,7 +90,7 @@ BEGIN
+ 
+ // Icon with lowest ID value placed first to ensure application icon
+ // remains consistent on all systems.
+-IDI_APP_LIST          ICON      "theme\\app_list\\win\\app_list.ico"
++IDI_APP_LIST          ICON      "..\\..\\icons\\product_logo.ico"
+ 
+ END
+ 
+--- a/chrome/app/theme/chrome/win/BUILD.gn
++++ b/chrome/app/theme/chrome/win/BUILD.gn
+@@ -4,6 +4,7 @@
+ 
+ import("//build/config/chromeos/ui_mode.gni")
+ import("//chrome/common/features.gni")
++import("//build/config/win/visual_studio_version.gni")
+ 
+ copy("theme_files") {
+   sources = [
+@@ -17,4 +18,13 @@ copy("theme_files") {
+   outputs = [ "$root_out_dir/{{source_file_part}}" ]
+ }
+ 
++copy("custom_icons") {
++  sources = [
++    "../../../../icons/product_logo.ico",
++    "../../../../icons/product_logo_16.png",
++    "../../../../icons/product_logo_32.png",
++  ]
++  outputs = [ "$root_out_dir/{{source_file_part}}" ]
++}
++
+ # Add target for chrome_app_strings if not building for ChromeOS.
+--- a/chrome/browser/ui/startup/startup_browser_creator_impl.cc
++++ b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
+@@ -969,7 +969,7 @@ bool StartupBrowserCreatorImpl::ProcessC
+   GetPrefService()->SetBoolean(prefs::kHasSeenWelcomePage, true);
+ 
+ #if !BUILDFLAG(IS_CHROMEOS_ASH)
+-  if (!profile_->GetPrefs()->GetBoolean(prefs::kHasSeenWelcomePage)) {
++  if (false && !profile_->GetPrefs()->GetBoolean(prefs::kHasSeenWelcomePage)) {
+     Browser* welcome_browser =
+         Browser::Create(Browser::CreateParams(profile_, true));
+     if (Browser::GetCreationStatusForProfile(profile_) ==
+--- a/ui/views/win/hwnd_util.cc
++++ b/ui/views/win/hwnd_util.cc
+@@ -13,6 +13,7 @@
+ #include "base/win/scoped_hicon.h"
+ #include "base/win/windows_version.h"
+ #include "ui/display/win/screen_win.h"
++#include "ui/gfx/icon_util.h"
+ #include "ui/gfx/win/hwnd_util.h"
+ #include "ui/views/widget/root_view.h"
+ #include "ui/views/widget/widget.h"
+@@ -28,7 +29,16 @@ std::unique_ptr<HICON__, base::FreeDeleter> GetWindowIcon(HWND window) {
+   // GetIconInfo owns the bitmaps after a successful call.
+   ICONINFO ii = {};
+   if (!icon || !GetIconInfo(icon, &ii))
+-    return nullptr;
++  {
++    // 尝试加载自定义图标
++    base::FilePath icon_path(L"product_logo.ico");
++    gfx::IconUtil::CreateHICONFromPNG(icon_path); // 从PNG创建HICON
++    
++    if (!icon || !GetIconInfo(icon, &ii))
++    {
++      return nullptr;
++    }
++  }
+ 
+   BITMAP mask_bitmap = {};
+   BITMAP color_bitmap = {};

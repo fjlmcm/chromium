@@ -1,0 +1,65 @@
+diff --git a/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc b/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
+index e11ae9deef..640744299b 100644
+--- a/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
++++ b/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
+@@ -25,9 +25,12 @@
+ 
+ #include "third_party/blink/renderer/modules/webaudio/offline_audio_context.h"
+ 
++#include "base/command_line.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/metrics/histogram_macros.h"
++#include "base/strings/string_number_conversions.h"
+ #include "media/base/audio_glitch_info.h"
++#include "components/ungoogled/ungoogled_switches.h"
+ #include "third_party/blink/public/platform/platform.h"
+ #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
+ #include "third_party/blink/renderer/bindings/modules/v8/v8_offline_audio_context_options.h"
+@@ -45,6 +48,9 @@
+ #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+ #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
+ 
++#include <random>
++#include <ctime>
++
+ namespace blink {
+ 
+ OfflineAudioContext* OfflineAudioContext::Create(
+@@ -125,6 +131,24 @@ OfflineAudioContext* OfflineAudioContext::Create(
+   return offline_context;
+ }
+ 
++
++float getRandomIntForFoo6Modern() {
++    // 获取命令行参数
++    const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
++    if (command_line->HasSwitch(switches::kFingerprint)) {
++        std::string fingerprint_str = command_line->GetSwitchValueASCII(switches::kFingerprint);
++        uint32_t fingerprint;
++        if (base::StringToUint(fingerprint_str, &fingerprint)) {
++	    // 使用fingerprint计算一个0-99.999的浮点数
++            int intPart = static_cast<int>(fingerprint % 100);
++            int decimalPart = static_cast<int>((fingerprint / 100) % 1000);
++            return intPart + (decimalPart / 1000.0f);
++        }
++    }
++    return 0;
++}
++
++
+ OfflineAudioContext::OfflineAudioContext(LocalDOMWindow* window,
+                                          unsigned number_of_channels,
+                                          uint32_t number_of_frames,
+@@ -133,10 +157,11 @@ OfflineAudioContext::OfflineAudioContext(LocalDOMWindow* window,
+     : BaseAudioContext(window, kOfflineContext),
+       total_render_frames_(number_of_frames) {
+   destination_node_ = OfflineAudioDestinationNode::Create(
+-      this, number_of_channels, number_of_frames, sample_rate);
++      this, number_of_channels, number_of_frames, sample_rate+getRandomIntForFoo6Modern());
+   Initialize();
+ }
+ 
++
+ OfflineAudioContext::~OfflineAudioContext() {
+ #if DEBUG_AUDIONODE_REFERENCES
+   fprintf(stderr, "[%16p]: OfflineAudioContext::~OfflineAudioContext()\n",
