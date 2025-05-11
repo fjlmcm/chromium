@@ -3,7 +3,7 @@
 @@ -1,2 +1,2 @@
  PRODUCT_FULLNAME=Chromium
 -PRODUCT_SHORTNAME=Chromium
-+PRODUCT_SHORTNAME=Ungoogled-Chromium
++PRODUCT_SHORTNAME=SharkBrowser
 --- a/chrome/app/theme/chromium/linux/product_logo_22.xpm
 +++ b/chrome/app/theme/chromium/linux/product_logo_22.xpm
 @@ -1,7 +1,7 @@
@@ -35,7 +35,7 @@
    // These are Chromium specific.
    string16 title = l10n_util::GetStringUTF16(IDS_FR_WELCOME_WIN);
 -  string16 brand_name = l10n_util::GetStringUTF16(IDS_SHORT_PRODUCT_NAME);
-+  string16 brand_name = u"Ungoogled-Chromium";
++  string16 brand_name = u"SharkBrowser";
    ReplaceSubstringsAfterOffset(&title, 0, L"$1", brand_name);
  
    RegisterMessageCallback(
@@ -46,7 +46,7 @@
  
  IDR_MAINFRAME           ICON                      "theme\\chromium\\win\\chromium.ico"
 -IDR_APP_LIST            ICON                      "theme\\chromium\\win\\app_list.ico"
-+IDR_APP_LIST            ICON                      "..\\..\\icons\\product_logo.ico"
++IDR_APP_LIST            ICON                      "theme\\chromium\\win\\product_logo.ico"
  
  
  /////////////////////////////////////////////////////////////////////////////
@@ -55,7 +55,7 @@
  // Icon with lowest ID value placed first to ensure application icon
  // remains consistent on all systems.
 -IDI_APP_LIST          ICON      "theme\\app_list\\win\\app_list.ico"
-+IDI_APP_LIST          ICON      "..\\..\\icons\\product_logo.ico"
++IDI_APP_LIST          ICON      "theme\\app_list\\win\\product_logo.ico"
  
  END
  
@@ -69,56 +69,44 @@
  
  copy("theme_files") {
    sources = [
-@@ -17,4 +18,13 @@ copy("theme_files") {
+@@ -18,4 +19,26 @@ copy("theme_files") {
    outputs = [ "$root_out_dir/{{source_file_part}}" ]
  }
  
++# 复制自定义图标到输出根目录，供运行时加载
 +copy("custom_icons") {
 +  sources = [
 +    "../../../../icons/product_logo.ico",
 +    "../../../../icons/product_logo_16.png",
 +    "../../../../icons/product_logo_32.png",
 +  ]
-+  outputs = [ "$root_out_dir/{{source_file_part}}" ]
++  outputs = [ "$root_out_dir/{{source_file_part}}" ] 
++}
++
++# 复制图标到编译使用的主题文件夹
++copy("theme_custom_icons") {
++  sources = [
++    "../../../../icons/product_logo.ico",
++  ]
++  outputs = [ "$target_gen_dir/../chromium/win/{{source_file_part}}" ]
 +}
 +
  # Add target for chrome_app_strings if not building for ChromeOS.
---- a/chrome/browser/ui/startup/startup_browser_creator_impl.cc
-+++ b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
-@@ -969,7 +969,7 @@ bool StartupBrowserCreatorImpl::ProcessC
-   GetPrefService()->SetBoolean(prefs::kHasSeenWelcomePage, true);
- 
- #if !BUILDFLAG(IS_CHROMEOS_ASH)
--  if (!profile_->GetPrefs()->GetBoolean(prefs::kHasSeenWelcomePage)) {
-+  if (false && !profile_->GetPrefs()->GetBoolean(prefs::kHasSeenWelcomePage)) {
-     Browser* welcome_browser =
-         Browser::Create(Browser::CreateParams(profile_, true));
-     if (Browser::GetCreationStatusForProfile(profile_) ==
---- a/ui/views/win/hwnd_util.cc
-+++ b/ui/views/win/hwnd_util.cc
-@@ -13,6 +13,7 @@
- #include "base/win/scoped_hicon.h"
- #include "base/win/windows_version.h"
- #include "ui/display/win/screen_win.h"
-+#include "ui/gfx/icon_util.h"
- #include "ui/gfx/win/hwnd_util.h"
- #include "ui/views/widget/root_view.h"
- #include "ui/views/widget/widget.h"
-@@ -28,7 +29,16 @@ std::unique_ptr<HICON__, base::FreeDeleter> GetWindowIcon(HWND window) {
-   // GetIconInfo owns the bitmaps after a successful call.
-   ICONINFO ii = {};
-   if (!icon || !GetIconInfo(icon, &ii))
--    return nullptr;
-+  {
-+    // 尝试加载自定义图标
-+    base::FilePath icon_path(L"product_logo.ico");
-+    gfx::IconUtil::CreateHICONFromPNG(icon_path); // 从PNG创建HICON
-+    
-+    if (!icon || !GetIconInfo(icon, &ii))
-+    {
-+      return nullptr;
-+    }
-+  }
- 
-   BITMAP mask_bitmap = {};
-   BITMAP color_bitmap = {};
++
++# 为app_list生成图标
++copy("app_list_icons") { sources = [ "../../../../icons/product_logo.ico" ]; outputs = [ "$target_gen_dir/../../app_list/win/{{source_file_part}}" ]; }
++
+--- a/chrome/chrome_dll.gni
++++ b/chrome/chrome_dll.gni
+@@ -46,6 +49,10 @@ template("chrome_dll") {
+     if (is_win) {
+       deps += [
+         "//chrome/app/theme/chrome/win:theme_files",
++        # 添加自定义图标依赖
++        "//chrome/app/theme/chrome/win:custom_icons",
++        "//chrome/app/theme/chrome/win:theme_custom_icons",
++        "//chrome/app/theme/chrome/win:app_list_icons",
+         
+         "//ui/resources",
+         
+        # For generated/rebased_chrome_resources.rc
