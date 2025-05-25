@@ -376,14 +376,14 @@ def apply_substitution(regex_path, files_path, source_tree, domainsub_cache):
     with tarfile.open(str(domainsub_cache), 'w:%s' % domainsub_cache.suffix[1:],
                       compresslevel=1) if domainsub_cache else open(os.devnull, 'w') as cache_tar:
         for relative_path in filter(len, files_path.read_text().splitlines()):
-            if _INDEX_HASH_DELIMITER in relative_path:
+            if INDEX_HASH_DELIMITER in relative_path:
                 if domainsub_cache:
                     # Cache tar will be incomplete; remove it for convenience
                     cache_tar.close()
                     domainsub_cache.unlink()
                 raise ValueError(
-                    'Path "%s" contains the file index hash delimiter "%s"' % relative_path,
-                    _INDEX_HASH_DELIMITER)
+                    'Path "%s" contains the file index hash delimiter "%s"' % (relative_path,
+                    INDEX_HASH_DELIMITER))
             path = resolved_tree / relative_path
             if not path.exists():
                 get_logger().warning('Skipping non-existant path: %s', path)
@@ -397,14 +397,14 @@ def apply_substitution(regex_path, files_path, source_tree, domainsub_cache):
                 get_logger().info('Path has no substitutions: %s', relative_path)
                 continue
             if domainsub_cache:
-                fileindex_content.write('{}{}{:08x}\n'.format(relative_path, _INDEX_HASH_DELIMITER,
+                fileindex_content.write('{}{}{:08x}\n'.format(relative_path, INDEX_HASH_DELIMITER,
                                                               crc32_hash).encode(ENCODING))
-                orig_tarinfo = tarfile.TarInfo(str(Path(_ORIG_DIR) / relative_path))
+                orig_tarinfo = tarfile.TarInfo(str(Path(ORIG_DIR_NAME) / relative_path))
                 orig_tarinfo.size = len(orig_content)
                 with io.BytesIO(orig_content) as orig_file:
                     cache_tar.addfile(orig_tarinfo, orig_file)
         if domainsub_cache:
-            fileindex_tarinfo = tarfile.TarInfo(_INDEX_LIST)
+            fileindex_tarinfo = tarfile.TarInfo(INDEX_LIST_FILENAME)
             fileindex_tarinfo.size = fileindex_content.tell()
             fileindex_content.seek(0)
             cache_tar.addfile(fileindex_tarinfo, fileindex_content)
@@ -455,7 +455,7 @@ def revert_substitution(domainsub_cache, source_tree):
 
         # Validate source tree file hashes match
         get_logger().debug('Validating substituted files in source tree...')
-        with (extract_path / _INDEX_LIST).open('rb') as index_file: #pylint: disable=no-member
+        with (extract_path / INDEX_LIST_FILENAME).open('rb') as index_file: #pylint: disable=no-member
             if not _validate_file_index(index_file, resolved_tree, cache_index_files):
                 raise KeyError('Domain substitution cache file index is corrupt or hashes mismatch '
                                'the source tree.')
@@ -464,11 +464,11 @@ def revert_substitution(domainsub_cache, source_tree):
         get_logger().debug('Moving original files over substituted ones...')
         for relative_path in cache_index_files:
             with _update_timestamp(resolved_tree / relative_path, set_new=False):
-                (extract_path / _ORIG_DIR / relative_path).replace(resolved_tree / relative_path)
+                (extract_path / ORIG_DIR_NAME / relative_path).replace(resolved_tree / relative_path)
 
         # Quick check for unused files in cache
         orig_has_unused = False
-        for orig_path in (extract_path / _ORIG_DIR).rglob('*'): #pylint: disable=no-member
+        for orig_path in (extract_path / ORIG_DIR_NAME).rglob('*'): #pylint: disable=no-member
             if orig_path.is_file():
                 get_logger().warning('Unused file from cache: %s', orig_path)
                 orig_has_unused = True
