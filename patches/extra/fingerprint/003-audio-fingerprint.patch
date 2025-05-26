@@ -31,13 +31,13 @@ index e11ae9deef..640744299b 100644
  
 +
 +float getRandomIntForFoo6Modern() {
-+    // 获取命令行参数
++    // Get command line parameters
 +    const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +    if (command_line->HasSwitch(switches::kFingerprint)) {
 +        std::string fingerprint_str = command_line->GetSwitchValueASCII(switches::kFingerprint);
 +        uint32_t fingerprint;
 +        if (base::StringToUint(fingerprint_str, &fingerprint)) {
-+	    // 使用fingerprint计算一个0-99.999的浮点数
++	    // Use fingerprint to calculate a float between 0-99.999
 +            int intPart = static_cast<int>(fingerprint % 100);
 +            int decimalPart = static_cast<int>((fingerprint / 100) % 1000);
 +            return intPart + (decimalPart / 1000.0f);
