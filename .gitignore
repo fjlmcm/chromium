@@ -1,54 +1,13 @@
-# Build outputs
-out/
-build/
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.dylib
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS files
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# Temporary files
-*.tmp
-*.temp
-*.log
-
-# Cache files
-*.cache
-.cache/
-
-# Node modules (if any)
-node_modules/
-
-# Python cache
+# Python files
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
 
-# Backup files
-*.bak
-*.backup
+# Python testing files
+.coverage
 
-# Large binary files
-*.tar.gz
-*.zip
-*.7z
-*.rar
+# Ignore macOS Finder meta
+.DS_Store
+.tm_properties
 
-# Chromium specific
-buildtools/
-third_party/llvm-build/
-.gclient
-.gclient_entries
+# Ignore optional build / cache directory
+/build

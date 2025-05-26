@@ -2,50 +2,75 @@ diff --git a/third_party/blink/renderer/core/frame/navigator_concurrent_hardware
 index f5c0db2d1b..0713fc4442 100644
 --- a/third_party/blink/renderer/core/frame/navigator_concurrent_hardware.cc
 +++ b/third_party/blink/renderer/core/frame/navigator_concurrent_hardware.cc
-@@ -3,12 +3,29 @@
+@@ -3,12 +3,30 @@
  // found in the LICENSE file.
-
+ 
  #include "third_party/blink/renderer/core/frame/navigator_concurrent_hardware.h"
 -
  #include "base/system/sys_info.h"
 +#include "base/command_line.h"
++#include "base/strings/string_number_conversions.h"
 +#include "components/ungoogled/ungoogled_switches.h"
-
+ 
  namespace blink {
-
+ 
  unsigned NavigatorConcurrentHardware::hardwareConcurrency() const {
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +
-+  // Check for directly specified hardware concurrency
++  // Check for explicitly specified hardware concurrency
 +  if (command_line->HasSwitch(switches::kFingerprintHardwareConcurrency)) {
 +    std::string value = command_line->GetSwitchValueASCII(switches::kFingerprintHardwareConcurrency);
-+    unsigned long custom_concurrency = std::stoul(value);
-+    return static_cast<unsigned>(custom_concurrency);
++    unsigned custom_concurrency;
++    if (base::StringToUint(value, &custom_concurrency) && custom_concurrency > 0) {
++      return custom_concurrency;
++    }
 +  }
 +
-+  // Calculate from fingerprint parameter if not directly specified
++  // Calculate from fingerprint if available
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
 +    std::string fingerprint_str = command_line->GetSwitchValueASCII(switches::kFingerprint);
-+    uint32_t fingerprint = static_cast<uint32_t>(std::stoull(fingerprint_str));
-+    return static_cast<unsigned>((fingerprint % 16) * 2);
++    uint32_t fingerprint;
++    if (base::StringToUint(fingerprint_str, &fingerprint)) {
++      // Generate a reasonable number of cores (2, 4, 6, 8, 12, 16)
++      static const unsigned core_options[] = {2, 4, 6, 8, 12, 16};
++      return core_options[fingerprint % (sizeof(core_options) / sizeof(core_options[0]))];
++    }
 +  }
 +
-+  // Return actual processor count if neither is specified
++  // Return actual processor count as fallback
    return static_cast<unsigned>(base::SysInfo::NumberOfProcessors());
  }
-
+ 
 diff --git a/third_party/blink/renderer/core/frame/navigator_device_memory.cc b/third_party/blink/renderer/core/frame/navigator_device_memory.cc
 index 2876aad298..e487401680 100644
 --- a/third_party/blink/renderer/core/frame/navigator_device_memory.cc
 +++ b/third_party/blink/renderer/core/frame/navigator_device_memory.cc
-@@ -14,7 +14,9 @@
+@@ -4,6 +4,9 @@
+ 
+ #include "third_party/blink/renderer/core/frame/navigator_device_memory.h"
+ #include "base/system/sys_info.h"
++#include "base/command_line.h"
++#include "base/strings/string_number_conversions.h"
++#include "components/ungoogled/ungoogled_switches.h"
+ 
  namespace blink {
-
- float NavigatorDeviceMemory::deviceMemory() const {
--  return ApproximatedDeviceMemory::GetApproximatedDeviceMemory();
-+  // Return fixed value for privacy reasons, maximum is 8
-+  return 8;
-+  // return ApproximatedDeviceMemory::GetApproximatedDeviceMemory();
- }
-
- }  // namespace blink
+ 
+@@ -11,6 +14,19 @@ float NavigatorDeviceMemory::deviceMemory() const {
+   // The minimum value is 0.25 and the maximum value is 8.
+   // https://wicg.github.io/device-memory/#sec-device-memory-js-api
+   int64_t memory_mb = base::SysInfo::AmountOfPhysicalMemoryMB();
++  
++  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
++  if (command_line->HasSwitch(switches::kFingerprint)) {
++    std::string fingerprint_str = command_line->GetSwitchValueASCII(switches::kFingerprint);
++    uint32_t fingerprint;
++    if (base::StringToUint(fingerprint_str, &fingerprint)) {
++      // Generate reasonable memory values (0.25, 0.5, 1, 2, 4, 8 GB)
++      static const float memory_options[] = {0.25f, 0.5f, 1.0f, 2.0f, 4.0f, 8.0f};
++      return memory_options[fingerprint % (sizeof(memory_options) / sizeof(memory_options[0]))];
++    }
++  }
++  
+   if (memory_mb >= 8192)
+     return 8.0;
+   if (memory_mb >= 4096)

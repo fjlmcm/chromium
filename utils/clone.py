@@ -15,6 +15,7 @@ from os import environ, pathsep
 from pathlib import Path
 from shutil import copytree, copy, move
 from stat import S_IWRITE
+import subprocess
 from subprocess import run
 
 from _common import add_common_params, get_chromium_version, get_logger
@@ -76,12 +77,45 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
         run(['git', 'reset', '--hard', 'FETCH_HEAD'], cwd=args.output, check=True)
         run(['git', 'clean', '-ffdx', '-e', 'uc_staging'], cwd=args.output, check=True)
     else:
-        run([
-            'git', 'clone', '-c', 'advice.detachedHead=false', '-b', chromium_version, '--depth=2',
-            "https://chromium.googlesource.com/chromium/src",
-            str(args.output)
-        ],
-            check=True)
+        # 尝试多次克隆，使用不同的策略
+        clone_success = False
+        clone_attempts = [
+            # 尝试1: 使用原始URL，增加重试
+            {
+                'url': "https://chromium.googlesource.com/chromium/src",
+                'extra_args': ['--config', 'http.postBuffer=524288000']
+            },
+            # 尝试2: 使用GitHub镜像
+            {
+                'url': "https://github.com/chromium/chromium.git",
+                'extra_args': []
+            }
+        ]
+        
+        for attempt_num, attempt in enumerate(clone_attempts, 1):
+            get_logger().info(f'克隆尝试 {attempt_num}/{len(clone_attempts)}: {attempt["url"]}')
+            try:
+                cmd = ['git', 'clone', '-c', 'advice.detachedHead=false', '-b', chromium_version, '--depth=2']
+                cmd.extend(attempt['extra_args'])
+                cmd.extend([attempt['url'], str(args.output)])
+                
+                run(cmd, check=True, timeout=3600)  # 1小时超时
+                clone_success = True
+                break
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+                get_logger().warning(f'克隆尝试 {attempt_num} 失败: {e}')
+                if attempt_num < len(clone_attempts):
+                    get_logger().info('尝试下一个源...')
+                    # 清理失败的克隆
+                    if args.output.exists():
+                        import shutil
+                        shutil.rmtree(args.output, ignore_errors=True)
+                else:
+                    get_logger().error('所有克隆尝试都失败了')
+                    raise e
+        
+        if not clone_success:
+            raise RuntimeError('无法克隆Chromium源码')
 
     # Set up staging directory
     ucstaging.mkdir(exist_ok=True)

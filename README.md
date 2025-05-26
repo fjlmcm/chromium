@@ -1,183 +1,131 @@
-# ungoogled-chromium
+# ungoogled-chromium 指纹伪装补丁
 
-*A lightweight approach to removing Google web service dependency*
+*基于ungoogled-chromium的浏览器指纹伪装增强版本*
 
-**Help is welcome!** See the [docs/contributing.md](docs/contributing.md) document for more information.
+## 项目概述
 
-## Objectives
+本项目是对ungoogled-chromium的增强版本，专注于提供更好的浏览器指纹伪装功能。在保持ungoogled-chromium原有隐私保护特性的基础上，增加了更完善的指纹伪装机制。
 
-In descending order of significance (i.e. most important objective first):
+## 主要特性
 
-1. **ungoogled-chromium is Google Chromium, sans dependency on Google web services**.
-2. **ungoogled-chromium retains the default Chromium experience as closely as possible**. Unlike other Chromium forks that have their own visions of a web browser, ungoogled-chromium is essentially a drop-in replacement for Chromium.
-3. **ungoogled-chromium features tweaks to enhance privacy, control, and transparency**. However, almost all of these features must be manually activated or enabled. For more details, see [Feature Overview](#feature-overview).
+### 核心改进
 
-In scenarios where the objectives conflict, the objective of higher significance should take precedence.
+1. **系统字体保护**: 重构字体指纹伪装逻辑，确保系统默认字体始终可用，避免网页显示异常
+2. **确定性随机化**: 使用基于种子的确定性算法替代真随机数，确保指纹的一致性
+3. **平台适配**: 针对Windows、macOS、Linux提供不同的系统字体列表
+4. **代码规范**: 严格遵循Chromium编码规范，移除所有中文注释
 
-## Content Overview
+### 指纹伪装功能
 
-* [Objectives](#objectives)
-* [Motivation and Philosophy](#motivation-and-philosophy)
-* [Feature Overview](#feature-overview)
-* [**Downloads**](#downloads)
-* [Source Code](#source-code)
-* [**FAQ**](#faq)
-* [Building Instructions](#building-instructions)
-* [Design Documentation](#design-documentation)
-* [**Contributing, Reporting, Contacting**](#contributing-reporting-contacting)
-* [Credits](#credits)
-* [Related Projects](#related-projects)
-* [License](#license)
+- **字体指纹**: 智能屏蔽非系统字体，保护系统默认字体
+- **用户代理**: 支持自定义操作系统、浏览器品牌和版本
+- **硬件信息**: 可配置CPU核心数和内存大小
+- **Canvas指纹**: 确定性的画布数据扰动
+- **WebGL指纹**: GPU信息伪装
+- **客户端矩形**: DOM元素尺寸微调
 
-## Motivation and Philosophy
+## 编译方式
 
-Without signing in to a Google Account, Chromium does pretty well in terms of security and privacy. However, Chromium still has some dependency on Google web services and binaries. In addition, Google designed Chromium to be easy and intuitive for users, which means they compromise on transparency and control of internal operations.
+本项目遵循ungoogled-chromium的标准编译流程：
 
-ungoogled-chromium addresses these issues in the following ways:
+```bash
+# 1. 下载源码
+mkdir -p build/download_cache
+./utils/downloads.py retrieve -c build/download_cache -i downloads.ini
+./utils/downloads.py unpack -c build/download_cache -i downloads.ini -- build/src
 
-1. Remove all remaining background requests to any web services while building and running the browser
-2. Remove all code specific to Google web services
-3. Remove all uses of pre-made binaries from the source code, and replace them with user-provided alternatives when possible.
-4. Disable features that inhibit control and transparency, and add or modify features that promote them (these changes will almost always require manual activation or enabling).
+# 2. 清理二进制文件
+./utils/prune_binaries.py build/src pruning.list
 
-These features are implemented as configuration flags, patches, and custom scripts. For more details, consult the [Design Documentation](docs/design.md).
+# 3. 应用补丁
+./utils/patches.py apply build/src patches
 
-## Feature Overview
+# 4. 域名替换
+./utils/domain_substitution.py apply -r domain_regex.list -f domain_substitution.list -c build/domsubcache.tar.gz build/src
 
-*This section overviews the features of ungoogled-chromium. For more detailed information, it is best to consult the source code.*
+# 5. 构建GN
+mkdir -p build/src/out/Default
+cd build/src
+./tools/gn/bootstrap/bootstrap.py --skip-generate-buildfiles -j4 -o out/Default/
 
-Contents of this section:
+# 6. 编译
+cp ../../flags.gn out/Default/args.gn
+./out/Default/gn gen out/Default --fail-on-unused-args
+ninja -C out/Default chrome chromedriver chrome_sandbox
+```
 
-* [Key Features](#key-features)
-* [Enhancing Features](#enhancing-features)
-* [Borrowed Features](#borrowed-features)
-* [Supported Platforms and Distributions](#supported-platforms-and-distributions)
+## 使用方法
 
-### Key Features
+### 基本指纹伪装
 
-*These are the core features introduced by ungoogled-chromium.*
+```bash
+# 使用指纹种子启动
+chrome --fingerprint=12345
 
-* Disable functionality specific to Google domains (e.g. Google Host Detector, Google URL Tracker, Google Cloud Messaging, Google Hotwording, etc.)
-    * This includes disabling [Safe Browsing](https://en.wikipedia.org/wiki/Google_Safe_Browsing). Consult [the FAQ for the rationale](https://ungoogled-software.github.io/ungoogled-chromium-wiki/faq#why-is-safe-browsing-disabled).
-* Block internal requests to Google at runtime. This feature is a fail-safe measure for the above, in case Google changes or introduces new components that our patches do not disable. This feature is implemented by replacing many Google web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution; [see docs/design.md](docs/design.md#source-file-processors) for details), then [modifying Chromium to block its own requests with such domains](patches/core/ungoogled-chromium/block-trk-and-subdomains.patch). In other words, no connections are attempted to the `qjz9zk` domain.
-* Strip binaries from the source code (known as binary pruning; [see docs/design.md](docs/design.md#source-file-processors) for details)
+# 指定平台
+chrome --fingerprint=12345 --fingerprint-platform=windows
 
-### Enhancing Features
+# 自定义硬件信息
+chrome --fingerprint=12345 --fingerprint-hardware-concurrency=8
+```
 
-*These are the non-essential features introduced by ungoogled-chromium.*
+### 高级配置
 
-* Add many new command-line switches and `chrome://flags` entries to configure new features (which are disabled by default). See [docs/flags.md](docs/flags.md) for the exhaustive list.
-* Add *Suggestions URL* text field in the search engine editor (`chrome://settings/searchEngines`) for customizing search engine suggestions.
-* Add more URL schemes allowed to save page schemes.
-* Add Omnibox search provider "No Search" to allow disabling of searching
-* Add a custom cross-platform build configuration and packaging wrapper for Chromium. It currently supports many Linux distributions, macOS, and Windows. (See [docs/design.md](docs/design.md) for details on the system.)
-* Force all pop-ups into tabs
-* Disable automatic formatting of URLs in Omnibox (e.g. stripping `http://`, hiding certain parameters)
-* Disable intranet redirect detector (extraneous DNS requests)
-    * This breaks captive portal detection, but captive portals still work.
-* (Iridium Browser feature change) Prevent URLs with the `trk:` scheme from connecting to the Internet
-    * Also prevents any URLs with the top-level domain `qjz9zk` (as used in domain substitution) from attempting a connection.
-* (Windows-specific) Do not set the Zone Identifier on downloaded files
+```bash
+# 完整配置示例
+chrome \
+  --fingerprint=12345 \
+  --fingerprint-platform=linux \
+  --fingerprint-platform-version="Ubuntu 22.04" \
+  --fingerprint-brand="Chrome" \
+  --fingerprint-brand-version="120.0.6099.129" \
+  --fingerprint-hardware-concurrency=16
+```
 
-### Borrowed Features
+## 技术改进
 
-In addition to the features introduced by ungoogled-chromium, ungoogled-chromium selectively borrows many features from the following projects (in approximate order of significance):
+### 字体伪装优化
 
-* [Inox patchset](https://github.com/gcarq/inox-patchset)
-* [Bromite](https://github.com/bromite/bromite)
-* [Debian](https://tracker.debian.org/pkg/chromium)
-* [Iridium Browser](https://iridiumbrowser.de/)
+- **系统字体保护**: 确保Arial、Times New Roman等系统默认字体始终可用
+- **平台特定**: 根据不同操作系统提供相应的系统字体列表
+- **智能屏蔽**: 仅对非系统字体进行30%概率的屏蔽
 
-### Supported Platforms and Distributions
+### 确定性算法
 
-[See docs/platforms.md for a list of supported platforms](docs/platforms.md).
+- **FNV-1a哈希**: 使用标准哈希算法确保结果的确定性
+- **种子混合**: 通过XOR操作混合指纹种子和输入数据
+- **范围控制**: 精确控制随机化的范围和分布
 
-Other platforms are discussed and tracked in this repository's Issue Tracker. Learn more about using the Issue Tracker under the section [Contributing, Reporting, Contacting](#contributing-reporting-contacting).
+### 代码质量
 
-## Downloads
+- **编码规范**: 严格遵循Chromium C++编码规范
+- **注释规范**: 使用英文注释，符合开源项目标准
+- **错误处理**: 增加参数验证和错误处理逻辑
+- **内存安全**: 使用Chromium推荐的安全编程实践
 
-### Automated or maintained builds
+## 版本信息
 
-ungoogled-chromium is available in the following **software repositories**:
+- **Chromium版本**: 134.0.6998.165
+- **项目版本**: 2.0.0
+- **最后更新**: 2024年12月
 
-* Arch: Available in the AUR, [see instructions in ungoogled-chromium-archlinux](https://github.com/ungoogled-software/ungoogled-chromium-archlinux)
-* Debian & Ubuntu: Available in OBS, find your [distribution specific instructions](https://github.com/ungoogled-software/ungoogled-chromium-debian) in the Installing section
-* Fedora: Available in [COPR](https://copr.fedorainfracloud.org/coprs/) as [`wojnilowicz/ungoogled-chromium`](https://copr.fedorainfracloud.org/coprs/wojnilowicz/ungoogled-chromium/). Also available in [RPM Fusion](https://rpmfusion.org/Configuration) as `chromium-browser-privacy` (outdated).
-* Gentoo: Available in [`::pf4public`](https://github.com/PF4Public/gentoo-overlay) overlay as [`ungoogled-chromium`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium) and [`ungoogled-chromium-bin`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium-bin) ebuilds
-* [OpenMandriva](https://openmandriva.org/) includes ungoogled-chromium as its main browser. The `chromium` package includes all ungoogling patches.
-* macOS: Available in [Homebrew](https://brew.sh/) as [`eloston-chromium`](https://formulae.brew.sh/cask/eloston-chromium). Just run `brew install --cask eloston-chromium`. Chromium will appear in your `/Applications` directory.
-* FreeBSD: Available in pkg as [`www/ungoogled-chromium`](https://www.freshports.org/www/ungoogled-chromium/).
+## 许可证
 
-If your GNU/Linux distribution is not listed, there are distro-independent builds available via the following **package managers**:
+本项目继承ungoogled-chromium的BSD-3-Clause许可证。详见[LICENSE](LICENSE)文件。
 
-* Flatpak: Available [in the Flathub repo](https://flathub.org/apps/details/io.github.ungoogled_software.ungoogled_chromium) as `io.github.ungoogled_software.ungoogled_chromium`
-* GNU Guix: Available as `ungoogled-chromium`
-* NixOS/nixpkgs: Available as `ungoogled-chromium`
+## 贡献指南
 
-### Third-party binaries
+1. 遵循Chromium编码规范
+2. 确保所有补丁都能正确应用
+3. 测试在不同平台上的兼容性
+4. 提交前运行完整的编译测试
 
-If your operating system is not listed above, you can also try to [**Download binaries from here**](https://ungoogled-software.github.io/ungoogled-chromium-binaries/)
+## 相关项目
 
-*NOTE: These binaries are provided by anyone who are willing to build and submit them. Because these binaries are not necessarily [reproducible](https://reproducible-builds.org/), authenticity cannot be guaranteed; In other words, there is always a non-zero probability that these binaries may have been tampered with. In the unlikely event that this has happened to you, please [report it in a new issue](#contributing-reporting-contacting).*
+- [ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium) - 上游项目
+- [Bromite](https://github.com/bromite/bromite) - Android版本的隐私增强浏览器
+- [Iridium Browser](https://iridiumbrowser.de/) - 另一个隐私导向的Chromium分支
 
-These binaries are known as **contributor binaries**.
+## 支持
 
-## Source Code
-
-This repository only contains the common code for all platforms; it does not contain all the configuration and scripts necessary to build ungoogled-chromium. Most users will want to use platform-specific repos, where all the remaining configuration and scripts are provided for specific platforms:
-
-[**Find the repo for a specific platform here**](docs/platforms.md).
-
-If you wish to include ungoogled-chromium code in your own build process, consider using [the tags in this repo](https://github.com/ungoogled-software/ungoogled-chromium/tags). These tags follow the format `{chromium_version}-{revision}` where
-
-* `chromium_version` is the version of Chromium used in `x.x.x.x` format, and
-* `revision` is a number indicating the version of ungoogled-chromium for the corresponding Chromium version.
-
-Additionally, most platform-specific repos extend their tag scheme upon this one.
-
-**Building the source code**: [See docs/building.md](docs/building.md)
-
-### Mirrors
-
-List of mirrors:
-
-* [Codeberg](https://codeberg.org): [main repo](https://codeberg.org/ungoogled-software/ungoogled-chromium) and [ungoogled-software](https://codeberg.org/ungoogled-software)
-
-## FAQ
-
-[See the frequently-asked questions (FAQ) on the Wiki](https://ungoogled-software.github.io/ungoogled-chromium-wiki/faq)
-
-## Building Instructions
-
-[See docs/building.md](docs/building.md)
-
-## Design Documentation
-
-[See docs/design.md](docs/design.md)
-
-## Contributing, Reporting, Contacting
-
-* For reporting and contacting, see [SUPPORT.md](SUPPORT.md)
-* If you're willing to help, check out the [Issue Tracker](https://github.com/ungoogled-software/ungoogled-chromium/issues) and especially issues, which [need help](https://github.com/ungoogled-software/ungoogled-chromium/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22)
-* For contributing (e.g. how to help, submitting changes, criteria for new features), see [docs/contributing.md](docs/contributing.md)
-* If you have some small contributions that don't fit our criteria, consider adding them to [ungoogled-software/contrib](https://github.com/ungoogled-software/contrib) or [our Wiki](https://github.com/ungoogled-software/ungoogled-chromium-wiki) instead.
-
-## Credits
-
-* [The Chromium Project](https://www.chromium.org/)
-* [Inox patchset](https://github.com/gcarq/inox-patchset)
-* [Debian](https://tracker.debian.org/pkg/chromium-browser)
-* [Bromite](https://github.com/bromite/bromite)
-* [Iridium Browser](https://iridiumbrowser.de/)
-* The users for testing and debugging, [contributing code](https://github.com/ungoogled-software/ungoogled-chromium/graphs/contributors), providing feedback, or simply using ungoogled-chromium in some capacity.
-
-## Related Projects
-
-List of known projects that fork or use changes from ungoogled-chromium:
-
-* [Bromite](https://github.com/bromite/bromite) (Borrows some patches. Features builds for Android)
-* [ppc64le fork](https://github.com/leo-lb/ungoogled-chromium) (Fork with changes to build for ppc64le CPUs)
-
-## License
-
-BSD-3-clause. See [LICENSE](LICENSE)
+如有问题或建议，请通过GitHub Issues提交。
