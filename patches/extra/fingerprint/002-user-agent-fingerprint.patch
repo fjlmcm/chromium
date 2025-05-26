@@ -18,7 +18,7 @@ index 38e4917692..3d56d8f8f2 100644
 +  std::string user_agent = ShouldSendUserAgentUnifiedPlatform(user_agent_reduction)
               ? content::BuildUnifiedPlatformUserAgentFromProduct(product)
               : content::BuildUserAgentFromProduct(product);
-+  // Add brand information to User-Agent string
++  // Apply brand information to User-Agent string
 +  user_agent += blink::GetUserAgentFingerprintBrandInfo();
 +  return user_agent;
  }
@@ -70,7 +70,7 @@ index 761d0650f5..1c6f85a105 100644
 +if (command_line->HasSwitch(switches::kFingerprintPlatform)) {
 +  std::string platform_value = base::ToLowerASCII(command_line->GetSwitchValueASCII(switches::kFingerprintPlatform));
 +
-+  // Check for custom platform override
++  // Return platform-specific prefix for User-Agent string
 +  if (platform_value == "windows") {
 +    return "";
 +  } else if (platform_value == "linux") {
@@ -121,12 +121,10 @@ index 9517c46f06..7dccd81929 100644
  #include "net/http/structured_headers.h"
  #include "third_party/blink/public/common/features.h"
  
-@@ -204,4 +206,122 @@ bool operator==(const UserAgentOverride& a, const UserAgentOverride& b) {
+@@ -204,4 +206,120 @@ bool operator==(const UserAgentOverride& a, const UserAgentOverride& b) {
           a.ua_metadata_override == b.ua_metadata_override;
  }
  
-+
-+
 +void UpdateUserAgentMetadataFingerprint(blink::UserAgentMetadata* metadata) {
 +  if (!metadata)
 +    return;
@@ -145,9 +143,9 @@ index 9517c46f06..7dccd81929 100644
 +        : "";
 +
 +    if (custom_brand == "Chrome") {
-+      // Chrome requires changing Chromium version to avoid version mismatch
++      // Chrome requires updating Chromium version to avoid version mismatch
 +      display_brand = "Google Chrome";
-+      version = custom_version.empty()? metadata->full_version : custom_version;
++      version = custom_version.empty() ? metadata->full_version : custom_version;
 +      main_version = version.substr(0, version.find('.'));
 +
 +      for (auto& brand_full_version : metadata->brand_full_version_list) {
@@ -247,12 +245,11 @@ index 9517c46f06..7dccd81929 100644
 diff --git a/third_party/blink/public/common/user_agent/user_agent_metadata.h b/third_party/blink/public/common/user_agent/user_agent_metadata.h
 index 1f058f96cc..00fbbdcca4 100644
 --- a/third_party/blink/public/common/user_agent/user_agent_metadata.h
-+++ b::third_party/blink/public/common/user_agent/user_agent_metadata.h
-@@ -104,6 +104,10 @@ bool BLINK_COMMON_EXPORT operator==(const UserAgentMetadata& a,
++++ b/third_party/blink/public/common/user_agent/user_agent_metadata.h
+@@ -104,6 +104,9 @@ bool BLINK_COMMON_EXPORT operator==(const UserAgentMetadata& a,
  bool BLINK_COMMON_EXPORT operator==(const UserAgentOverride& a,
                                      const UserAgentOverride& b);
  
-+
 +void UpdateUserAgentMetadataFingerprint(UserAgentMetadata* metadata);
 +
 +std::string GetUserAgentFingerprintBrandInfo();

@@ -27,11 +27,10 @@ index 0000000000..232662e8e0
 +#include "components/ungoogled/ungoogled_switches.h"
 +#include "third_party/blink/renderer/modules/webgl/gpu_info.h"
 +
-+// GPU deviceID information can be found at:
-+// Driver version 570.144 - replace with latest driver version
-+// https://download.nvidia.com/XFree86/Linux-x86_64/570.144/README/supportedchips.html
-+// https://deviceandbrowserinfo.com/data/fingerprints/attribute/webGLRenderer
-+// https://devicehunt.com/view/type/pci/vendor/10DE
++// GPU device ID information can be queried from:
++// - NVIDIA driver documentation (replace with latest driver version)
++// - https://deviceandbrowserinfo.com/data/fingerprints/attribute/webGLRenderer
++// - https://devicehunt.com/view/type/pci/vendor/10DE
 +
 +namespace blink {
 +
@@ -227,7 +226,7 @@ index 0000000000..bedd25845b
 +// Generate full Windows GPU info on demand
 +GpuInfo GetWindowsGpuInfo(size_t index) {
 +  if (index >= kGpuModelCount) {
-+    // Default to last one (RTX 4090) if out of bounds
++    // Default to last one (RTX 5090) if out of bounds
 +    index = kGpuModelCount - 1;
 +  }
 +  
@@ -288,8 +287,8 @@ index 0000000000..bedd25845b
 +// Helper function to get a macOS GPU model string
 +std::string GetMacosGpuString(size_t index) {
 +  if (index >= kMacosGpuModelCount) {
-+    // Default to M3 if out of bounds
-+    index = kMacosGpuModelCount - 1;  // Index of M3 in the array
++    // Default to M4 if out of bounds
++    index = kMacosGpuModelCount - 1;  // Index of M4 Pro in the array
 +  }
 +  
 +  return base::StringPrintf("ANGLE (Apple, ANGLE Metal Renderer: Apple %s, Unspecified Version)",
@@ -379,7 +378,7 @@ index 4e41751805..73d8332710 100644
  #include "third_party/blink/renderer/modules/webgl/oes_element_index_uint.h"
  #include "third_party/blink/renderer/modules/webgl/oes_standard_derivatives.h"
  #include "third_party/blink/renderer/modules/webgl/oes_texture_float.h"
-@@ -3858,10 +3859,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+@@ -3858,10 +3859,7 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
                pname, IdentifiabilityBenignStringToken(
                           String(ContextGL()->GetString(GL_RENDERER))));
          }
@@ -387,11 +386,7 @@ index 4e41751805..73d8332710 100644
 -          return WebGLAny(script_state, String("ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)"));
 -        return WebGLAny(script_state,
 -                        String(ContextGL()->GetString(GL_RENDERER)));
-+        // if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo))
-+        // return WebGLAny(script_state, String("ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)"));
-+        // return WebGLAny(script_state,
-+        //               String(ContextGL()->GetString(GL_RENDERER)));
-+	return WebGLAny(script_state, String(GetGLRendererStringForFingerprint()));
++        return WebGLAny(script_state, String(GetGLRendererStringForFingerprint()));
        }
        SynthesizeGLError(
            GL_INVALID_ENUM, "getParameter",
@@ -403,7 +398,7 @@ index 4e41751805..73d8332710 100644
 -          return WebGLAny(script_state, String("Google Inc. (Google)"));
 -        return WebGLAny(script_state,
 -                        String(ContextGL()->GetString(GL_VENDOR)));
-+	return WebGLAny(script_state, String(GetGLVendorStringForFingerprint()));
++        return WebGLAny(script_state, String(GetGLVendorStringForFingerprint()));
        }
        SynthesizeGLError(
            GL_INVALID_ENUM, "getParameter",

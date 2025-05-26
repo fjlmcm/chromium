@@ -5,7 +5,7 @@ index d675d2025b..e37c4ad596 100644
 @@ -24,6 +24,14 @@
  #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
  #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
-
+ 
 +#include <random>
 +#include <string>
 +#include <vector>
@@ -15,13 +15,14 @@ index d675d2025b..e37c4ad596 100644
 +#include "components/ungoogled/ungoogled_switches.h"
 +
  namespace blink {
-
+ 
  DOMPlugin::DOMPlugin(LocalDOMWindow* window, const PluginInfo& plugin_info)
-@@ -35,8 +43,64 @@ void DOMPlugin::Trace(Visitor* visitor) const {
+@@ -35,8 +43,65 @@ void DOMPlugin::Trace(Visitor* visitor) const {
    ExecutionContextClient::Trace(visitor);
  }
-
+ 
 +namespace {
++
 +uint32_t GetFingerprint() {
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  if (!command_line->HasSwitch(switches::kFingerprint))
@@ -36,10 +37,10 @@ index d675d2025b..e37c4ad596 100644
 +}
 +
 +uint32_t HashString(const String& str) {
-+  uint32_t hash = 2166136261u;  // FNV-1a hash
++  uint32_t hash = 2166136261u;  // FNV-1a hash offset basis
 +  for (char c : str.Utf8()) {
 +    hash ^= c;
-+    hash *= 16777619u;
++    hash *= 16777619u;  // FNV-1a hash prime
 +  }
 +  return hash;
 +}
@@ -67,7 +68,7 @@ index d675d2025b..e37c4ad596 100644
 +  return result.ToString();
 +}
 +
-+} //namespace
++}  // namespace
 +
  String DOMPlugin::name() const {
 -  return plugin_info_->Name();
@@ -75,21 +76,21 @@ index d675d2025b..e37c4ad596 100644
 +  if (!fingerprint)
 +    return plugin_info_->Name();
 +
-+  // Combine fingerprint with hash of original name
++  // Combine fingerprint with hash of original name for deterministic randomization
 +  uint32_t name_hash = HashString(plugin_info_->Name());
 +  uint32_t final_seed = fingerprint ^ name_hash;
 +
 +  return GetRandomPluginName(final_seed);
  }
-
+ 
  String DOMPlugin::filename() const {
-@@ -44,7 +108,8 @@ String DOMPlugin::filename() const {
+@@ -44,7 +109,8 @@ String DOMPlugin::filename() const {
  }
-
+ 
  String DOMPlugin::description() const {
 -  return plugin_info_->Description();
-+  // return plugin_info_->Description();
++  // Return generic description to prevent plugin fingerprinting
 +  return "internal-pdf-viewer";
  }
-
+ 
  unsigned DOMPlugin::length() const {
