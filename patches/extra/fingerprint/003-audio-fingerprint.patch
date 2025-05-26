@@ -3,9 +3,9 @@ index e11ae9deef..640744299b 100644
 --- a/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
 +++ b/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
 @@ -25,9 +25,12 @@
- 
+
  #include "third_party/blink/renderer/modules/webaudio/offline_audio_context.h"
- 
+
 +#include "base/command_line.h"
  #include "base/metrics/histogram_functions.h"
  #include "base/metrics/histogram_macros.h"
@@ -18,17 +18,17 @@ index e11ae9deef..640744299b 100644
 @@ -45,6 +48,9 @@
  #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
  #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
- 
+
 +#include <random>
 +#include <ctime>
 +
  namespace blink {
- 
+
  OfflineAudioContext* OfflineAudioContext::Create(
 @@ -125,6 +131,23 @@ OfflineAudioContext* OfflineAudioContext::Create(
    return offline_context;
  }
- 
+
 +float GetAudioFingerprintOffset() {
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
@@ -55,7 +55,7 @@ index e11ae9deef..640744299b 100644
 +      this, number_of_channels, number_of_frames, sample_rate + GetAudioFingerprintOffset());
    Initialize();
  }
- 
+
  OfflineAudioContext::~OfflineAudioContext() {
  #if DEBUG_AUDIONODE_REFERENCES
    fprintf(stderr, "[%16p]: OfflineAudioContext::~OfflineAudioContext()\n",
