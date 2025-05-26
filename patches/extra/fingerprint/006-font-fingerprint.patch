@@ -20,7 +20,7 @@ index b3a4c782c6..c417182fbb 100644
  #include "build/build_config.h"
  #include "skia/ext/font_utils.h"
  #include "third_party/blink/public/common/features.h"
-@@ -155,6 +158,67 @@ const FontPlatformData* FontCache::GetFontPlatformData(
+@@ -155,6 +158,58 @@ const FontPlatformData* FontCache::GetFontPlatformData(
      PlatformInit();
    }
  
@@ -28,59 +28,50 @@ index b3a4c782c6..c417182fbb 100644
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
 +    // Define system default fonts that should always be available
 +    static const char* system_default_fonts[] = {
-+#if BUILDFLAG(IS_WIN)
 +      "Arial",
 +      "Times New Roman", 
 +      "Courier New",
-+      "Segoe UI",
-+      "Calibri",
-+      "Tahoma",
-+      "Verdana"
-+#elif BUILDFLAG(IS_MAC)
 +      "Helvetica",
 +      "Times",
 +      "Courier",
-+      "San Francisco",
-+      "Lucida Grande",
-+      "Arial",
-+      "Times New Roman"
-+#elif BUILDFLAG(IS_LINUX)
-+      "DejaVu Sans",
-+      "DejaVu Serif", 
-+      "DejaVu Sans Mono",
-+      "Liberation Sans",
-+      "Liberation Serif",
-+      "Liberation Mono",
++      "sans-serif",
++      "serif",
++      "monospace",
++      "cursive",
++      "fantasy",
++      "system-ui",
++      "-webkit-system-font",
++      "-apple-system",
++      "BlinkMacSystemFont",
++      "Segoe UI",
++      "Roboto",
 +      "Ubuntu",
-+      "Noto Sans"
-+#else
-+      "Arial",
-+      "Times New Roman",
-+      "Courier New"
-+#endif
++      "Cantarell",
++      "Noto Sans",
++      "Liberation Sans",
++      "DejaVu Sans"
 +    };
 +
 +    if (creation_params.CreationType() == kCreateFontByFamily) {
 +      // Check if this is a system default font
-+      bool is_system_default = false;
++      bool is_system_font = false;
++      String family_name = creation_params.Family();
 +      for (const char* font : system_default_fonts) {
-+        if (creation_params.Family() == font) {
-+          is_system_default = true;
++        if (family_name.EqualIgnoringASCIICase(font)) {
++          is_system_font = true;
 +          break;
 +        }
 +      }
 +
-+      // Only apply fingerprinting to non-system fonts
-+      if (!is_system_default) {
++      // Apply fingerprinting only to non-system fonts
++      if (!is_system_font) {
 +        std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
 +        uint32_t seed;
 +        if (base::StringToUint(fingerprint, &seed)) {
-+          uint32_t hash = std::hash<String>{}(creation_params.Family());
++          uint32_t hash = std::hash<String>{}(family_name);
 +          hash = hash ^ seed;
-+
-+          // Use deterministic probability based on hash
-+          // 30% chance to block non-system fonts
-+          if (hash % 10 < 3) {
++          // Use deterministic but varied probability based on font name
++          if ((hash % 100) < 30) {  // 30% chance to block non-system fonts
 +            return nullptr;
 +          }
 +        }

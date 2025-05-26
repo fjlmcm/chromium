@@ -6,22 +6,22 @@ index c2f9515e91..1a1c6085c5 100644
  // Enable fingerprinting deception for Canvas image data
  const char kFingerprintingCanvasImageDataNoise[] = "fingerprinting-canvas-image-data-noise";
 
-+// Specify the fingerprint seed for deterministic randomization
++// Specify the fingerprint seed
 +const char kFingerprint[] = "fingerprint";
 +
-+// Specify the operating system type for user agent spoofing
++// Specify the operating system type
 +const char kFingerprintPlatform[] = "fingerprint-platform";
 +
-+// Specify the operating system version for user agent spoofing
++// Specify the operating system version
 +const char kFingerprintPlatformVersion[] = "fingerprint-platform-version";
 +
-+// Specify the browser brand for user agent spoofing
++// Specify the browser brand
 +const char kFingerprintBrand[] = "fingerprint-brand";
 +
-+// Specify the browser version for user agent spoofing
++// Specify the browser version
 +const char kFingerprintBrandVersion[] = "fingerprint-brand-version";
 +
-+// Specify the number of CPU cores to report
++// Specify the number of CPU cores
 +const char kFingerprintHardwareConcurrency[] = "fingerprint-hardware-concurrency";
  }  // namespace switches
 diff --git a/components/ungoogled/ungoogled_switches.h b/components/ungoogled/ungoogled_switches.h

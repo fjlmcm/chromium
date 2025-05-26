@@ -27,8 +27,8 @@ index 0000000000..232662e8e0
 +#include "components/ungoogled/ungoogled_switches.h"
 +#include "third_party/blink/renderer/modules/webgl/gpu_info.h"
 +
-+// GPU deviceID信息可以在这里查询
-+// 570.144是驱动号，替换成最新的驱动号
++// GPU deviceID information can be found at:
++// Driver version 570.144 - replace with latest driver version
 +// https://download.nvidia.com/XFree86/Linux-x86_64/570.144/README/supportedchips.html
 +// https://deviceandbrowserinfo.com/data/fingerprints/attribute/webGLRenderer
 +// https://devicehunt.com/view/type/pci/vendor/10DE
