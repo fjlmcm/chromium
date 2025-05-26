@@ -82,3 +82,9 @@ index b3a4c782c6..c417182fbb 100644
  #if !BUILDFLAG(IS_MAC)
    if (creation_params.CreationType() == kCreateFontByFamily &&
        creation_params.Family() == font_family_names::kSystemUi) {
+     return GetFontPlatformData(
+         FontDescription::GetGenericFamilyUsingFontManagerForFontFace(
+             FontDescription::kSystemUiFamily),
+         font_size, font_selection_request);
+   }
+ #endif  // !BUILDFLAG(IS_MAC)
