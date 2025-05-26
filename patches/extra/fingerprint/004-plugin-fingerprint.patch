@@ -5,7 +5,7 @@ index d675d2025b..e37c4ad596 100644
 @@ -24,6 +24,14 @@
  #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
  #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
- 
+
 +#include <random>
 +#include <string>
 +#include <vector>
@@ -15,12 +15,12 @@ index d675d2025b..e37c4ad596 100644
 +#include "components/ungoogled/ungoogled_switches.h"
 +
  namespace blink {
- 
+
  DOMPlugin::DOMPlugin(LocalDOMWindow* window, const PluginInfo& plugin_info)
 @@ -35,8 +43,65 @@ void DOMPlugin::Trace(Visitor* visitor) const {
    ExecutionContextClient::Trace(visitor);
  }
- 
+
 +namespace {
 +
 +uint32_t GetFingerprint() {
@@ -82,15 +82,15 @@ index d675d2025b..e37c4ad596 100644
 +
 +  return GetRandomPluginName(final_seed);
  }
- 
+
  String DOMPlugin::filename() const {
 @@ -44,7 +109,8 @@ String DOMPlugin::filename() const {
  }
- 
+
  String DOMPlugin::description() const {
 -  return plugin_info_->Description();
 +  // Return generic description to prevent plugin fingerprinting
 +  return "internal-pdf-viewer";
  }
- 
+
  unsigned DOMPlugin::length() const {

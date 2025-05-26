@@ -5,7 +5,7 @@ index b3a4c782c6..c417182fbb 100644
 @@ -32,14 +32,17 @@
  #include <limits>
  #include <memory>
- 
+
 +#include "base/command_line.h"
  #include "base/debug/alias.h"
  #include "base/feature_list.h"
@@ -23,7 +23,7 @@ index b3a4c782c6..c417182fbb 100644
 @@ -155,6 +158,67 @@ const FontPlatformData* FontCache::GetFontPlatformData(
      PlatformInit();
    }
- 
+
 +  // Apply font fingerprinting protection when enabled
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
@@ -51,7 +51,7 @@ index b3a4c782c6..c417182fbb 100644
 +
 +    if (creation_params.CreationType() == kCreateFontByFamily) {
 +      const String& font_family = creation_params.Family();
-+      
++
 +      // Check if this is an essential font that should always be available
 +      bool is_essential_font = false;
 +      for (const char* essential_font : essential_fonts) {
@@ -70,13 +70,13 @@ index b3a4c782c6..c417182fbb 100644
 +          // Create a hash combining font name and fingerprint seed
 +          uint32_t hash = std::hash<String>{}(font_family);
 +          hash = hash ^ seed;
-+          
++
 +          // Use a more conservative approach: only hide ~25% of non-essential fonts
 +          // This reduces fingerprinting while maintaining better web compatibility
 +          if ((hash % 4) == 0) {
 +            return nullptr;  // Font not available
 +          }
-+          
++
 +          // For remaining fonts, occasionally return a substitute font
 +          // to further obfuscate the real font list
 +          if ((hash % 8) == 1) {

@@ -4,7 +4,7 @@ index 37d68606cc..3e49c71def 100644
 +++ b/third_party/blink/renderer/core/dom/document.cc
 @@ -34,6 +34,7 @@
  #include <utility>
- 
+
  #include "base/auto_reset.h"
 +#include "base/command_line.h"
  #include "base/containers/adapters.h"
@@ -66,7 +66,7 @@ index 72966feaf9..7b01704396 100644
 @@ -32,9 +32,11 @@
  #include <memory>
  #include <utility>
- 
+
 +#include "base/command_line.h"
  #include "base/containers/adapters.h"
  #include "base/feature_list.h"
@@ -102,16 +102,16 @@ index f89723bffa..37a6f95a67 100644
 @@ -23,6 +23,8 @@
   * Boston, MA 02110-1301, USA.
   */
- 
+
 +#include "base/command_line.h"
 +#include "components/ungoogled/ungoogled_switches.h"
  #include "third_party/blink/renderer/core/dom/range.h"
- 
+
  #include "third_party/blink/renderer/core/display_lock/display_lock_document_state.h"
 @@ -1617,7 +1619,8 @@ DOMRectList* Range::getClientRects() const {
    Vector<gfx::QuadF> quads;
    GetBorderAndTextQuads(quads);
- 
+
 -  if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled()) {
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
@@ -161,7 +161,7 @@ index 8940bb0a90..93dbf39f67 100644
    }
 @@ -3729,7 +3733,9 @@ TextMetrics* BaseRenderingContext2D::measureText(const String& text) {
                                             GetState().GetTextAlign(), text);
- 
+
    // Scale text metrics if enabled
 -  if (RuntimeEnabledFeatures::FingerprintingCanvasMeasureTextNoiseEnabled()) {
 +
@@ -175,9 +175,9 @@ index ff135c051a..3f26e09350 100644
 --- a/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
 +++ b/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
 @@ -34,10 +34,12 @@
- 
+
  #include <memory>
- 
+
 +#include "base/command_line.h"
  #include "base/compiler_specific.h"
  #include "base/memory/ptr_util.h"
@@ -190,7 +190,7 @@ index ff135c051a..3f26e09350 100644
 @@ -149,7 +151,8 @@ bool ImageDataBuffer::EncodeImageInternal(const ImageEncodingMimeType mime_type,
                                            const SkPixmap& pixmap) const {
    DCHECK(is_valid_);
- 
+
 -  if (RuntimeEnabledFeatures::FingerprintingCanvasImageDataNoiseEnabled()) {
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
@@ -202,9 +202,9 @@ index 78f821f760..dc85d93b0c 100644
 --- a/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
 +++ b/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
 @@ -4,9 +4,11 @@
- 
+
  #include "third_party/blink/renderer/platform/graphics/static_bitmap_image.h"
- 
+
 +#include "base/command_line.h"
  #include "base/rand_util.h"
  #include "base/logging.h"
@@ -214,9 +214,9 @@ index 78f821f760..dc85d93b0c 100644
  #include "third_party/blink/renderer/platform/graphics/accelerated_static_bitmap_image.h"
  #include "third_party/blink/renderer/platform/graphics/graphics_context.h"
 @@ -124,6 +126,25 @@ void StaticBitmapImage::DrawHelper(cc::PaintCanvas* canvas,
- 
+
  #define writable_addr(T, p, stride, x, y) (T*)((const char *)p + y * stride + x * sizeof(T))
- 
+
 +// FNV-1a hash function implementation
 +uint32_t GetFNVHash(uint32_t val, uint32_t seed) {
 +  constexpr uint32_t FNV_PRIME = 16777619u;
@@ -238,11 +238,11 @@ index 78f821f760..dc85d93b0c 100644
 +
  void StaticBitmapImage::ShuffleSubchannelColorData(const void *addr, const SkImageInfo& info, int srcX, int srcY) {
    auto w = info.width() - srcX, h = info.height() - srcY;
- 
+
 @@ -132,8 +153,17 @@ void StaticBitmapImage::ShuffleSubchannelColorData(const void *addr, const SkIma
      return;
    }
- 
+
 -  // generate the first random number here
 -  double shuffleX = base::RandDouble();
 +  // Get fingerprint seed
@@ -256,27 +256,26 @@ index 78f821f760..dc85d93b0c 100644
 +  // Generate deterministic X coordinate hash using fingerprint
 +  uint32_t hash_x = GetFNVHash(w, seed);
 +  double shuffleX = GetNormalizedHash(hash_x);
- 
+
    // cap maximum pixels to change
    auto pixels = (w + h) / 128;
 @@ -148,8 +178,9 @@ void StaticBitmapImage::ShuffleSubchannelColorData(const void *addr, const SkIma
- 
+
    DLOG(INFO) << "BRM: ShuffleSubchannelColorData() w=" << w << " h=" << h << " colorType=" << colorType << " fRowBytes=" << fRowBytes;
- 
+
 -  // second random number (for y/height)
 -  double shuffleY = base::RandDouble();
 +  // Generate deterministic Y coordinate hash
 +  uint32_t hash_y = GetFNVHash(h, ~seed);  // Use bitwise NOT of seed for different hash
 +  double shuffleY = GetNormalizedHash(hash_y);
- 
+
    // calculate random coordinates using bisection
    auto currentW = w, currentH = h;
 @@ -157,7 +188,7 @@ void StaticBitmapImage::ShuffleSubchannelColorData(const void *addr, const SkIma
      int x = currentW * shuffleX, y = currentH * shuffleY;
- 
+
      // calculate randomisation amounts for each RGB component
 -    uint8_t shuffleR = base::RandInt(0, 4);
 +    uint8_t shuffleR = seed % 4;
      uint8_t shuffleG = (shuffleR + x) % 4;
      uint8_t shuffleB = (shuffleG + y) % 4;
- 

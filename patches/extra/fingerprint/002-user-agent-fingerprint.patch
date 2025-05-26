@@ -22,7 +22,7 @@ index 38e4917692..3d56d8f8f2 100644
 +  user_agent += blink::GetUserAgentFingerprintBrandInfo();
 +  return user_agent;
  }
- 
+
  // Generate random order list based on the input size and seed.
 diff --git a/content/browser/client_hints/client_hints.cc b/content/browser/client_hints/client_hints.cc
 index 69b7169dfc..bc0b5ed6b0 100644
@@ -31,7 +31,7 @@ index 69b7169dfc..bc0b5ed6b0 100644
 @@ -709,6 +709,8 @@ void UpdateNavigationRequestClientUaHeadersImpl(
      if (!ua_metadata.has_value())
        ua_metadata = delegate->GetUserAgentMetadata();
- 
+
 +    UpdateUserAgentMetadataFingerprint(&ua_metadata.value());
 +
      // The `Sec-CH-UA` client hint is attached to all outgoing requests. This is
@@ -43,12 +43,12 @@ index 761d0650f5..1c6f85a105 100644
 +++ b/content/common/user_agent.cc
 @@ -10,7 +10,11 @@
  #include "content/public/common/user_agent.h"
- 
+
  #include <stdint.h>
 +#include <algorithm>
 +#include <cctype>
 +#include <string>
- 
+
 +#include "base/command_line.h"
  #include "base/containers/contains.h"
  #include "base/logging.h"
@@ -59,12 +59,12 @@ index 761d0650f5..1c6f85a105 100644
  #include "build/util/chromium_git_revision.h"
 +#include "components/ungoogled/ungoogled_switches.h"
 +
- 
+
  #if BUILDFLAG(IS_MAC)
  #include "base/mac/mac_util.h"
 @@ -46,6 +52,21 @@ const char kFrozenUserAgentTemplate[] =
      "Safari/537.36";
- 
+
  std::string GetUserAgentPlatform() {
 +const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +if (command_line->HasSwitch(switches::kFingerprintPlatform)) {
@@ -86,7 +86,7 @@ index 761d0650f5..1c6f85a105 100644
  #elif BUILDFLAG(IS_MAC)
 @@ -66,6 +87,20 @@ std::string GetUserAgentPlatform() {
  }
- 
+
  std::string GetUnifiedPlatform() {
 +const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +if (command_line->HasSwitch(switches::kFingerprintPlatform)) {
@@ -110,9 +110,9 @@ index 9517c46f06..7dccd81929 100644
 --- a/third_party/blink/common/user_agent/user_agent_metadata.cc
 +++ b/third_party/blink/common/user_agent/user_agent_metadata.cc
 @@ -6,9 +6,11 @@
- 
+
  #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
- 
+
 +#include "base/command_line.h"
  #include "base/containers/contains.h"
  #include "base/containers/span.h"
@@ -120,11 +120,11 @@ index 9517c46f06..7dccd81929 100644
 +#include "components/ungoogled/ungoogled_switches.h"
  #include "net/http/structured_headers.h"
  #include "third_party/blink/public/common/features.h"
- 
+
 @@ -204,4 +206,120 @@ bool operator==(const UserAgentOverride& a, const UserAgentOverride& b) {
           a.ua_metadata_override == b.ua_metadata_override;
  }
- 
+
 +void UpdateUserAgentMetadataFingerprint(blink::UserAgentMetadata* metadata) {
 +  if (!metadata)
 +    return;
@@ -249,12 +249,12 @@ index 1f058f96cc..00fbbdcca4 100644
 @@ -104,6 +104,9 @@ bool BLINK_COMMON_EXPORT operator==(const UserAgentMetadata& a,
  bool BLINK_COMMON_EXPORT operator==(const UserAgentOverride& a,
                                      const UserAgentOverride& b);
- 
+
 +void UpdateUserAgentMetadataFingerprint(UserAgentMetadata* metadata);
 +
 +std::string GetUserAgentFingerprintBrandInfo();
  }  // namespace blink
- 
+
  #endif  // THIRD_PARTY_BLINK_PUBLIC_COMMON_USER_AGENT_USER_AGENT_METADATA_H_
 diff --git a/third_party/blink/renderer/core/frame/navigator.cc b/third_party/blink/renderer/core/frame/navigator.cc
 index 5deefc16cb..8bfa0a3763 100644
@@ -263,16 +263,16 @@ index 5deefc16cb..8bfa0a3763 100644
 @@ -21,6 +21,9 @@
   *  MA 02110-1301, USA
   */
- 
+
 +#include "base/command_line.h"
 +#include "base/strings/string_util.h"
 +#include "components/ungoogled/ungoogled_switches.h"
  #include "third_party/blink/renderer/core/frame/navigator.h"
- 
+
  #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
 @@ -58,6 +61,20 @@ String Navigator::vendorSub() const {
  }
- 
+
  String Navigator::platform() const {
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +
@@ -297,7 +297,7 @@ index ff46a7fbfa..663caace2d 100644
 +++ b/third_party/blink/renderer/core/frame/navigator_ua.cc
 @@ -19,6 +19,9 @@ NavigatorUAData* NavigatorUA::userAgentData() {
      return ua_data;
- 
+
    UserAgentMetadata metadata = GetUserAgentMetadata();
 +
 +  UpdateUserAgentMetadataFingerprint(&metadata);
@@ -318,7 +318,7 @@ index ec9180b2d2..218e747b01 100644
  #include "mojo/public/cpp/bindings/associated_remote.h"
  #include "net/http/structured_headers.h"
 @@ -614,6 +615,8 @@ void FrameFetchContext::AddClientHintsIfNecessary(
- 
+
    // Only send User Agent hints if the info is available
    if (ua) {
 +    UpdateUserAgentMetadataFingerprint(&ua.value());
