@@ -1,0 +1,54 @@
+# Build outputs
+out/
+build/
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Cache files
+*.cache
+.cache/
+
+# Node modules (if any)
+node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Backup files
+*.bak
+*.backup
+
+# Large binary files
+*.tar.gz
+*.zip
+*.7z
+*.rar
+
+# Chromium specific
+buildtools/
+third_party/llvm-build/
+.gclient
+.gclient_entries

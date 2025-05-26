@@ -1,0 +1,78 @@
+diff --git a/third_party/blink/renderer/platform/fonts/font_cache.cc b/third_party/blink/renderer/platform/fonts/font_cache.cc
+index b3a4c782c6..c417182fbb 100644
+--- a/third_party/blink/renderer/platform/fonts/font_cache.cc
++++ b/third_party/blink/renderer/platform/fonts/font_cache.cc
+@@ -32,14 +32,17 @@
+ #include <limits>
+ #include <memory>
+ 
++#include "base/command_line.h"
+ #include "base/debug/alias.h"
+ #include "base/feature_list.h"
+ #include "base/notreached.h"
+ #include "base/strings/escape.h"
++#include "base/strings/string_number_conversions.h"
+ #include "base/system/sys_info.h"
+ #include "base/timer/elapsed_timer.h"
+ #include "base/trace_event/process_memory_dump.h"
+ #include "base/trace_event/trace_event.h"
++#include "components/ungoogled/ungoogled_switches.h"
+ #include "build/build_config.h"
+ #include "skia/ext/font_utils.h"
+ #include "third_party/blink/public/common/features.h"
+@@ -155,6 +158,52 @@ const FontPlatformData* FontCache::GetFontPlatformData(
+     PlatformInit();
+   }
+ 
++  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
++  if (command_line->HasSwitch(switches::kFingerprint)) {
++    // Define system default fonts that should always be available
++    static const char* kSystemDefaultFonts[] = {
++      "Arial",
++      "Times New Roman", 
++      "Courier New",
++      "Helvetica",
++      "Times",
++      "Courier",
++      "Georgia",
++      "Verdana",
++      "Tahoma",
++      "Trebuchet MS",
++      "Impact",
++      "Comic Sans MS",
++      "Palatino",
++      "Lucida Grande",
++      "Lucida Sans Unicode"
++    };
++
++    if (creation_params.CreationType() == kCreateFontByFamily) {
++      // Check if this is a system default font
++      bool is_system_default = false;
++      const String& family_name = creation_params.Family();
++      for (const char* font : kSystemDefaultFonts) {
++        if (family_name == font) {
++          is_system_default = true;
++          break;
++        }
++      }
++
++      // Apply fingerprinting only to non-system fonts
++      if (!is_system_default) {
++        std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
++        uint32_t seed;
++        if (base::StringToUint(fingerprint, &seed)) {
++          uint32_t hash = std::hash<String>{}(family_name);
++          hash = hash ^ seed;
++
++          // Use deterministic probability based on hash
++          if (hash % 3 == 0) {
++            return nullptr;
++          }
++        }
++      }
++    }
++  }
++
+ #if !BUILDFLAG(IS_MAC)
+   if (creation_params.CreationType() == kCreateFontByFamily &&
+       creation_params.Family() == font_family_names::kSystemUi) {
