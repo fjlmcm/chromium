@@ -1,11 +1,11 @@
 diff --git a/third_party/blink/renderer/platform/fonts/font_cache.cc b/third_party/blink/renderer/platform/fonts/font_cache.cc
-index b3a4c782c6..c417182fbb 100644
+index b3a4c782c6..8f9c2a1b4d 100644
 --- a/third_party/blink/renderer/platform/fonts/font_cache.cc
 +++ b/third_party/blink/renderer/platform/fonts/font_cache.cc
 @@ -32,14 +32,17 @@
  #include <limits>
  #include <memory>
-
+ 
 +#include "base/command_line.h"
  #include "base/debug/alias.h"
  #include "base/feature_list.h"
@@ -20,68 +20,57 @@ index b3a4c782c6..c417182fbb 100644
  #include "build/build_config.h"
  #include "skia/ext/font_utils.h"
  #include "third_party/blink/public/common/features.h"
-@@ -155,6 +158,67 @@ const FontPlatformData* FontCache::GetFontPlatformData(
+@@ -155,6 +158,58 @@ const FontPlatformData* FontCache::GetFontPlatformData(
      PlatformInit();
    }
-
-+  // Apply font fingerprinting protection when enabled
+ 
++  // Font fingerprinting protection
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
-+    // Define essential system fonts that should always be available
-+    // to maintain basic functionality and avoid breaking web content
-+    static const char* essential_fonts[] = {
-+      // Core web fonts
-+      "Arial", "Helvetica", "Times", "Times New Roman", "Courier", "Courier New",
-+      "Georgia", "Verdana", "Tahoma", "Trebuchet MS", "Impact", "Comic Sans MS",
-+      // System UI fonts
-+      "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto",
-+      "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-+      // Monospace fonts
-+      "Monaco", "Menlo", "Consolas", "Liberation Mono", "DejaVu Sans Mono",
-+      // Fallback fonts
-+      "sans-serif", "serif", "monospace", "cursive", "fantasy",
++    // Define system default fonts that should never be blocked
++    static const char* system_default_fonts[] = {
 +      // Windows system fonts
-+      "Segoe UI", "Calibri", "Cambria", "Candara", "Corbel", "Constantia",
++      "Arial", "Times New Roman", "Courier New", "Segoe UI", "Tahoma", "Verdana",
++      "Georgia", "Trebuchet MS", "Comic Sans MS", "Impact", "Lucida Console",
++      "Microsoft Sans Serif", "Palatino Linotype", "Symbol", "Webdings", "Wingdings",
++      // Linux system fonts
++      "DejaVu Sans", "DejaVu Serif", "DejaVu Sans Mono", "Liberation Sans",
++      "Liberation Serif", "Liberation Mono", "Ubuntu", "Cantarell", "Noto Sans",
++      "Noto Serif", "Noto Sans Mono", "Source Sans Pro", "Source Serif Pro",
++      "Source Code Pro", "Droid Sans", "Droid Serif", "Droid Sans Mono",
 +      // macOS system fonts
-+      "San Francisco", "SF Pro Display", "SF Pro Text", "Lucida Grande",
-+      // Linux common fonts
-+      "Liberation Sans", "Liberation Serif", "Liberation Mono", "DejaVu Sans",
-+      "DejaVu Serif", "DejaVu Sans Mono", "Noto Sans", "Noto Serif"
++      "Helvetica", "Times", "Courier", "Helvetica Neue", "Lucida Grande",
++      "Monaco", "Menlo", "SF Pro Display", "SF Pro Text", "SF Mono",
++      "Apple Color Emoji", "PingFang SC", "PingFang TC", "Hiragino Sans",
++      // Generic font families (CSS)
++      "serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui"
 +    };
 +
 +    if (creation_params.CreationType() == kCreateFontByFamily) {
-+      const String& font_family = creation_params.Family();
-+
-+      // Check if this is an essential font that should always be available
-+      bool is_essential_font = false;
-+      for (const char* essential_font : essential_fonts) {
-+        if (font_family.EqualIgnoringASCIICase(essential_font)) {
-+          is_essential_font = true;
++      String font_family = creation_params.Family();
++      
++      // Check if this is a system default font
++      bool is_system_font = false;
++      for (const char* system_font : system_default_fonts) {
++        if (font_family.StartsWithIgnoringASCIICase(system_font) ||
++            font_family.EndsWithIgnoringASCIICase(system_font) ||
++            font_family.ContainsIgnoringASCIICase(system_font)) {
++          is_system_font = true;
 +          break;
 +        }
 +      }
 +
-+      // Only apply fingerprinting protection to non-essential fonts
-+      if (!is_essential_font) {
-+        // Get fingerprint value as seed for deterministic behavior
++      // Only apply fingerprinting to non-system fonts
++      if (!is_system_font) {
 +        std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
 +        uint32_t seed;
 +        if (base::StringToUint(fingerprint, &seed)) {
-+          // Create a hash combining font name and fingerprint seed
 +          uint32_t hash = std::hash<String>{}(font_family);
 +          hash = hash ^ seed;
 +
-+          // Use a more conservative approach: only hide ~25% of non-essential fonts
-+          // This reduces fingerprinting while maintaining better web compatibility
-+          if ((hash % 4) == 0) {
-+            return nullptr;  // Font not available
-+          }
-+
-+          // For remaining fonts, occasionally return a substitute font
-+          // to further obfuscate the real font list
-+          if ((hash % 8) == 1) {
-+            // Return a common fallback instead of the requested font
-+            // This will be handled by the font fallback mechanism
++          // Use a more conservative approach: only block 25% of non-system fonts
++          if (hash % 4 == 0) {
++            return nullptr;
 +          }
 +        }
 +      }
