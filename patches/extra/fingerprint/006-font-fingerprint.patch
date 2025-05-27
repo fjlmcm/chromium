@@ -1,5 +1,5 @@
 diff --git a/third_party/blink/renderer/platform/fonts/font_cache.cc b/third_party/blink/renderer/platform/fonts/font_cache.cc
-index b3a4c782c6..8f9c2a1b4d 100644
+index b3a4c782c6..c417182fbb 100644
 --- a/third_party/blink/renderer/platform/fonts/font_cache.cc
 +++ b/third_party/blink/renderer/platform/fonts/font_cache.cc
 @@ -32,14 +32,17 @@
@@ -20,59 +20,35 @@ index b3a4c782c6..8f9c2a1b4d 100644
  #include "build/build_config.h"
  #include "skia/ext/font_utils.h"
  #include "third_party/blink/public/common/features.h"
-@@ -155,6 +158,58 @@ const FontPlatformData* FontCache::GetFontPlatformData(
+@@ -155,6 +158,35 @@ const FontPlatformData* FontCache::GetFontPlatformData(
      PlatformInit();
    }
  
-+  // Font fingerprinting protection
++  // 获取命令行参数
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
-+    // Define system default fonts that should never be blocked
-+    static const char* system_default_fonts[] = {
-+      // Windows system fonts
-+      "Arial", "Times New Roman", "Courier New", "Segoe UI", "Tahoma", "Verdana",
-+      "Georgia", "Trebuchet MS", "Comic Sans MS", "Impact", "Lucida Console",
-+      "Microsoft Sans Serif", "Palatino Linotype", "Symbol", "Webdings", "Wingdings",
-+      // Linux system fonts
-+      "DejaVu Sans", "DejaVu Serif", "DejaVu Sans Mono", "Liberation Sans",
-+      "Liberation Serif", "Liberation Mono", "Ubuntu", "Cantarell", "Noto Sans",
-+      "Noto Serif", "Noto Sans Mono", "Source Sans Pro", "Source Serif Pro",
-+      "Source Code Pro", "Droid Sans", "Droid Serif", "Droid Sans Mono",
-+      // macOS system fonts
-+      "Helvetica", "Times", "Courier", "Helvetica Neue", "Lucida Grande",
-+      "Monaco", "Menlo", "SF Pro Display", "SF Pro Text", "SF Mono",
-+      "Apple Color Emoji", "PingFang SC", "PingFang TC", "Hiragino Sans",
-+      // Generic font families (CSS)
-+      "serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui"
++    // 定义基础字体列表
++    static const char* basic_fonts[] = {
++      "Arial",
++      "Times New Roman",
++      "Courier New",
++      "Georgia",
++      "Verdana"
 +    };
 +
++    // 检查是否是自定义字体（非系统字体）
 +    if (creation_params.CreationType() == kCreateFontByFamily) {
-+      String font_family = creation_params.Family();
-+      
-+      // Check if this is a system default font
-+      bool is_system_font = false;
-+      for (const char* system_font : system_default_fonts) {
-+        if (font_family.StartsWithIgnoringASCIICase(system_font) ||
-+            font_family.EndsWithIgnoringASCIICase(system_font) ||
-+            font_family.ContainsIgnoringASCIICase(system_font)) {
-+          is_system_font = true;
-+          break;
-+        }
-+      }
-+
-+      // Only apply fingerprinting to non-system fonts
-+      if (!is_system_font) {
-+        std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
-+        uint32_t seed;
-+        if (base::StringToUint(fingerprint, &seed)) {
-+          uint32_t hash = std::hash<String>{}(font_family);
-+          hash = hash ^ seed;
-+
-+          // Use a more conservative approach: only block 25% of non-system fonts
-+          if (hash % 4 == 0) {
-+            return nullptr;
-+          }
-+        }
++      // 获取fingerprint值作为种子
++      std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
++      uint32_t seed;
++      if (base::StringToUint(fingerprint, &seed)) {
++        uint32_t hash = std::hash<String>{}(creation_params.Family());
++        hash = hash ^ seed;  // 将fingerprint值混入hash
++        
++        // 不再屏蔽系统字体，而是调整字体的一些非关键参数
++        // 如果将来需要向字体对象添加微小变化，可以在这里修改FontPlatformData对象
++        // 例如，可以稍微调整字体大小或其他渲染参数
++        // 这里先保留注释，等待后续实现
 +      }
 +    }
 +  }
