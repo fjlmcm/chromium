@@ -18,7 +18,7 @@ index 37d68606cc..3e49c71def 100644
  #include "mojo/public/cpp/bindings/pending_remote.h"
  #include "mojo/public/cpp/bindings/remote.h"
  #include "mojo/public/mojom/base/text_direction.mojom-blink.h"
-@@ -864,10 +866,38 @@ Document::Document(const DocumentInit& initializer,
+@@ -864,10 +866,36 @@ Document::Document(const DocumentInit& initializer,
    TRACE_EVENT_WITH_FLOW0("blink", "Document::Document", TRACE_ID_LOCAL(this),
                           TRACE_EVENT_FLAG_FLOW_OUT);
    DCHECK(agent_);
@@ -29,35 +29,33 @@ index 37d68606cc..3e49c71def 100644
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
 +    std::string seed_str = command_line->GetSwitchValueASCII(switches::kFingerprint);
-+    uint32_t seed = 0;
-+    bool conversion_success = base::StringToUint(seed_str, &seed);
-+    
-+    if (conversion_success) {
-+      // Use FNV-1a hash algorithm to generate two different hash values
-+      constexpr uint32_t FNV_PRIME = 16777619u;
-+      constexpr uint32_t FNV_OFFSET = 2166136261u;
++    uint32_t seed = static_cast<uint32_t>(std::stoul(seed_str));
 +
-+      // Generate hash for x
-+      uint32_t hash_val_x = FNV_OFFSET;
-+      hash_val_x ^= seed;
-+      hash_val_x *= FNV_PRIME;
-+      hash_val_x ^= (seed >> 16);
-+      
-+      // Generate different hash for y
-+      uint32_t hash_val_y = FNV_OFFSET;
-+      hash_val_y ^= ~seed;  // Use bitwise negation of seed
-+      hash_val_y *= FNV_PRIME;
-+      hash_val_y ^= (seed >> 8);
-+      
-+      // Convert hash values to very small noise factors (-0.0001% to 0.0001%)
-+      // Reduced to one third of original value to minimize visual impact
-+      double rand_x = static_cast<double>(hash_val_x) / std::numeric_limits<uint32_t>::max();
-+      double rand_y = static_cast<double>(hash_val_y) / std::numeric_limits<uint32_t>::max();
-+      
-+      // Calculate final noise factors
-+      noise_factor_x_ = 1 + (rand_x - 0.5) * 0.000001;
-+      noise_factor_y_ = 1 + (rand_y - 0.5) * 0.000001;
-+    }
++    // Use FNV-1a hash algorithm to generate two different deterministic hash values
++    constexpr uint32_t FNV_PRIME = 16777619u;
++    constexpr uint32_t FNV_OFFSET = 2166136261u;
++
++    // Generate hash for X dimension
++    uint32_t hash_val_x = FNV_OFFSET;
++    hash_val_x ^= seed;
++    hash_val_x *= FNV_PRIME;
++    hash_val_x ^= (seed >> 16);
++    hash_val_x *= FNV_PRIME;
++
++    // Generate a different hash for Y dimension
++    uint32_t hash_val_y = FNV_OFFSET;
++    hash_val_y ^= ~seed;  // Use bitwise NOT of seed to create a different hash
++    hash_val_y *= FNV_PRIME;
++    hash_val_y ^= (~seed >> 16);
++    hash_val_y *= FNV_PRIME;
++
++    // Map hash values to range [-0.5, 0.5]
++    double norm_x = (hash_val_x & 0xFFFFFFFF) / 4294967295.0 - 0.5;
++    double norm_y = (hash_val_y & 0xFFFFFFFF) / 4294967295.0 - 0.5;
++
++    // Calculate noise factors (tiny variations of ±0.0003%)
++    noise_factor_x_ = 1.0 + norm_x * 0.000003;
++    noise_factor_y_ = 1.0 + norm_y * 0.000003;
    }
    if (base::FeatureList::IsEnabled(features::kDelayAsyncScriptExecution) &&
        features::kDelayAsyncScriptExecutionDelayByDefaultParam.Get()) {
@@ -219,7 +217,7 @@ index 78f821f760..dc85d93b0c 100644
  
  #define writable_addr(T, p, stride, x, y) (T*)((const char *)p + y * stride + x * sizeof(T))
  
-+// FNV-1a hash function implementation
++// FNV-1a hash 函数实现
 +uint32_t GetFNVHash(uint32_t val, uint32_t seed) {
 +  constexpr uint32_t FNV_PRIME = 16777619u;
 +  constexpr uint32_t FNV_OFFSET = 2166136261u;
@@ -233,7 +231,7 @@ index 78f821f760..dc85d93b0c 100644
 +  return hash;
 +}
 +
-+// Generate deterministic float between 0-1
++// 生成 0-1 之间的确定性浮点数
 +double GetNormalizedHash(uint32_t hash) {
 +  return (hash & 0xFFFFFFFF) / 4294967295.0;
 +}
@@ -247,53 +245,38 @@ index 78f821f760..dc85d93b0c 100644
  
 -  // generate the first random number here
 -  double shuffleX = base::RandDouble();
-+  // Get fingerprint seed
++  // 获取 fingerprint
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  uint32_t seed = 0;
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
 +    std::string seed_str = command_line->GetSwitchValueASCII(switches::kFingerprint);
-+    base::StringToUint(seed_str, &seed);
++    seed = static_cast<uint32_t>(std::stoul(seed_str));
 +  }
 +
-+  // Use fingerprint to generate deterministic X coordinate hash
++  // 使用 fingerprint 生成确定性的 X 坐标散列
 +  uint32_t hash_x = GetFNVHash(w, seed);
 +  double shuffleX = GetNormalizedHash(hash_x);
  
    // cap maximum pixels to change
    auto pixels = (w + h) / 128;
-@@ -141,6 +171,7 @@ void StaticBitmapImage::ShuffleSubchannelColorData(const void *addr, const SkIma
-   // Note: This limits the number of pixels modified to preserve better user experience
-   if (pixels > 16)
-     pixels = 16;
-+  pixels = pixels > 8 ? 8 : pixels;  // Further reduce modified pixel count
- 
-   auto fRowBytes = info.minRowBytes();
-   auto colorType = info.colorType();
-@@ -148,8 +179,9 @@ void StaticBitmapImage::ShuffleSubchannelColorData(const void *addr, const SkIma
+@@ -148,8 +178,9 @@ void StaticBitmapImage::ShuffleSubchannelColorData(const void *addr, const SkIma
  
    DLOG(INFO) << "BRM: ShuffleSubchannelColorData() w=" << w << " h=" << h << " colorType=" << colorType << " fRowBytes=" << fRowBytes;
  
 -  // second random number (for y/height)
 -  double shuffleY = base::RandDouble();
-+  // Generate deterministic Y coordinate hash
-+  uint32_t hash_y = GetFNVHash(h, ~seed);  // Use bitwise negation of seed for different hash
++  // 生成确定性的 Y 坐标散列
++  uint32_t hash_y = GetFNVHash(h, ~seed);  // 使用 seed 的按位取反来生成不同的散列
 +  double shuffleY = GetNormalizedHash(hash_y);
  
    // calculate random coordinates using bisection
    auto currentW = w, currentH = h;
-@@ -157,9 +189,12 @@ void StaticBitmapImage::ShuffleSubchannelColorData(const void *addr, const SkIma
+@@ -157,7 +188,7 @@ void StaticBitmapImage::ShuffleSubchannelColorData(const void *addr, const SkIma
      int x = currentW * shuffleX, y = currentH * shuffleY;
  
      // calculate randomisation amounts for each RGB component
 -    uint8_t shuffleR = base::RandInt(0, 4);
--    uint8_t shuffleG = (shuffleR + x) % 4;
--    uint8_t shuffleB = (shuffleG + y) % 4;
-+    // Reduce color channel random variation range to improve visual fidelity
-+    uint32_t hash_r = GetFNVHash(x+y, seed);
-+    uint8_t shuffleR = hash_r % 3;  // Reduced from 0-4 to 0-2
-+    
-+    uint8_t shuffleG = (shuffleR + x) % 3;
-+    uint8_t shuffleB = (shuffleG + y) % 3;
++    uint8_t shuffleR = seed % 4;
+     uint8_t shuffleG = (shuffleR + x) % 4;
+     uint8_t shuffleB = (shuffleG + y) % 4;
  
-     // do not edit alpha
-     uint8_t shuffleA = 0;

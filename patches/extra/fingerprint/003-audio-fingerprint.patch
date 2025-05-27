@@ -15,29 +15,35 @@ index e11ae9deef..640744299b 100644
  #include "third_party/blink/public/platform/platform.h"
  #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
  #include "third_party/blink/renderer/bindings/modules/v8/v8_offline_audio_context_options.h"
-@@ -125,6 +128,16 @@ OfflineAudioContext* OfflineAudioContext::Create(
+@@ -125,6 +128,21 @@ OfflineAudioContext* OfflineAudioContext::Create(
    return offline_context;
  }
 
-+float GetAudioNoise() {
++// Calculates a small deterministic noise value for audio fingerprinting protection
++float GetDeterministicAudioNoiseValue() {
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
 +    std::string fingerprint_str = command_line->GetSwitchValueASCII(switches::kFingerprint);
 +    uint32_t fingerprint;
-+    if (base::StringToUint(fingerprint_str, &fingerprint))
++    if (base::StringToUint(fingerprint_str, &fingerprint)) {
++      // Generate a small noise value between 0 and 0.1
++      // This value is consistent for a given fingerprint
 +      return static_cast<float>(fingerprint % 100) / 1000.0f;
++    }
 +  }
-+  return 0;
++  return 0.0f;
 +}
 +
  OfflineAudioContext::OfflineAudioContext(Document* document,
                                           unsigned number_of_channels,
                                           uint32_t number_of_frames,
-@@ -133,7 +146,7 @@ OfflineAudioContext::OfflineAudioContext(Document* document,
+@@ -133,7 +151,7 @@ OfflineAudioContext::OfflineAudioContext(Document* document,
      : BaseAudioContext(document, kOfflineContext),
        total_render_frames_(number_of_frames) {
    destination_node_ = OfflineAudioDestinationNode::Create(
 -      this, number_of_channels, number_of_frames, sample_rate);
-+      this, number_of_channels, number_of_frames, sample_rate + GetAudioNoise());
++      this, number_of_channels, number_of_frames, sample_rate + GetDeterministicAudioNoiseValue());
    Initialize();
  }
+
+ OfflineAudioContext::~OfflineAudioContext() = default;

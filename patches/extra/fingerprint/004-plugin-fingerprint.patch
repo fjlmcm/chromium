@@ -23,7 +23,8 @@ index d675d2025b..e37c4ad596 100644
 
 +namespace {
 +
-+uint32_t GetFingerprint() {
++// Retrieves the fingerprint seed from command line
++uint32_t GetFingerprintSeed() {
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  if (!command_line->HasSwitch(switches::kFingerprint))
 +    return 0;
@@ -36,6 +37,7 @@ index d675d2025b..e37c4ad596 100644
 +  return fingerprint;
 +}
 +
++// FNV-1a hash function for strings
 +uint32_t HashString(const String& str) {
 +  uint32_t hash = 2166136261u;  // FNV-1a hash offset basis
 +  for (char c : str.Utf8()) {
@@ -45,42 +47,40 @@ index d675d2025b..e37c4ad596 100644
 +  return hash;
 +}
 +
-+String GetRandomPluginName(uint32_t seed) {
++// Generates a random but consistent plugin name based on the seed
++String GeneratePluginName(uint32_t seed) {
 +  std::mt19937 prng(seed);
 +
-+  std::vector<String> chrome{"Chrome ", "Chromium ", "Google ",
-+                            "Web ", "Browser ", "OpenSource ",
-+                            "Online ", "JavaScript ", ""};
-+  std::vector<String> pdf{"PDF ",
-+                         "Portable Document Format ",
-+                         "portable-document-format ",
-+                         "document ",
-+                         "doc ",
-+                         "PDF and PS ",
-+                         "com.adobe.pdf "};
-+  std::vector<String> viewer{"Viewer", "Renderer", "Display", "Plugin",
-+                            "plug-in", "plug in", "extension", ""};
++  // Plugin name components
++  std::vector<String> prefixes{
++    "Chrome ", "Chromium ", "Google ", "Web ", 
++    "Browser ", "OpenSource ", "Online ", "JavaScript ", ""
++  };
++  
++  std::vector<String> types{
++    "PDF ", "Portable Document Format ", "Document ", 
++    "Viewer ", "Reader ", "Display "
++  };
++  
++  std::vector<String> suffixes{
++    "Viewer", "Reader", "Plugin", "Extension", 
++    "Handler", "Module", "Component"
++  };
 +
-+  StringBuilder result;
-+  result.Append(chrome[prng() % chrome.size()]);
-+  result.Append(pdf[prng() % pdf.size()]);
-+  result.Append(viewer[prng() % viewer.size()]);
-+  return result.ToString();
++  // Select components based on seed
++  String prefix = prefixes[prng() % prefixes.size()];
++  String type = types[prng() % types.size()];
++  String suffix = suffixes[prng() % suffixes.size()];
++
++  // Combine to create consistent plugin name
++  return prefix + type + suffix;
 +}
 +
 +}  // namespace
 +
  String DOMPlugin::name() const {
--  return plugin_info_->Name();
-+  uint32_t fingerprint = GetFingerprint();
-+  if (!fingerprint)
-+    return plugin_info_->Name();
-+
-+  // Combine fingerprint with hash of original name for deterministic randomization
-+  uint32_t name_hash = HashString(plugin_info_->Name());
-+  uint32_t final_seed = fingerprint ^ name_hash;
-+
-+  return GetRandomPluginName(final_seed);
+-  return plugin_info_.name;
++  return GeneratePluginName(HashString(plugin_info_.name) ^ GetFingerprintSeed());
  }
 
  String DOMPlugin::filename() const {

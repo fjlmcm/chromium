@@ -27,10 +27,10 @@ index 0000000000..232662e8e0
 +#include "components/ungoogled/ungoogled_switches.h"
 +#include "third_party/blink/renderer/modules/webgl/gpu_info.h"
 +
-+// GPU device ID information can be queried from:
-+// - NVIDIA driver documentation (replace with latest driver version)
-+// - https://deviceandbrowserinfo.com/data/fingerprints/attribute/webGLRenderer
-+// - https://devicehunt.com/view/type/pci/vendor/10DE
++// GPU device ID information from standard hardware databases
++// - Hardware identifiers from PCI database and vendor specifications
++// - Common GPU models across Windows, macOS and Linux platforms
++// - Standard format WebGL renderer strings
 +
 +namespace blink {
 +
@@ -162,63 +162,68 @@ index 0000000000..bedd25845b
 +
 +// Windows/Linux GPU models - shared between platforms
 +const GpuModelInfo kGpuModels[] = {
-+  {"GeForce RTX 3050", "0x00002507"},
-+  {"GeForce RTX 3050", "0x00002582"},
-+  {"GeForce RTX 3050 6GB Laptop GPU", "0x000025EC"},
-+  {"GeForce RTX 3050 Laptop GPU", "0x000025A2"},
-+  {"GeForce RTX 3050 Ti Laptop GPU", "0x000025A0"},
-+  {"GeForce RTX 3060", "0x00002487"},
-+  {"GeForce RTX 3060", "0x00002503"},
-+  {"GeForce RTX 3060", "0x00002504"},
-+  {"GeForce RTX 3060 Laptop GPU", "0x00002520"},
-+  {"GeForce RTX 3060 Laptop GPU", "0x00002560"},
-+  {"GeForce RTX 3060 Ti", "0x00002486"},
-+  {"GeForce RTX 3060 Ti", "0x00002489"},
-+  {"GeForce RTX 3060 Ti", "0x000024C9"},
-+  {"GeForce RTX 3070", "0x00002484"},
-+  {"GeForce RTX 3070", "0x00002488"},
-+  {"GeForce RTX 3070 Ti", "0x00002482"},
-+  {"GeForce RTX 3070 Ti Laptop GPU", "0x000024A0"},
++  // RTX 50 Series (Latest generation)
++  {"GeForce RTX 5090", "0x00002B85"},
++  {"GeForce RTX 5080", "0x00002C02"},
++  {"GeForce RTX 5070", "0x00002F04"},
++  {"GeForce RTX 5070 Ti", "0x00002C05"},
++  {"GeForce RTX 5090 Laptop GPU", "0x00002C18"},
++  {"GeForce RTX 5090 Laptop GPU", "0x00002C58"},
++  {"GeForce RTX 5080 Laptop GPU", "0x00002C19"},
++  {"GeForce RTX 5080 Laptop GPU", "0x00002C59"},
++  {"GeForce RTX 5070 Ti Laptop GPU", "0x00002F18"},
++  {"GeForce RTX 5070 Ti Laptop GPU", "0x00002F58"},
++  
++  // RTX 40 Series
++  {"GeForce RTX 4090", "0x00002684"},
++  {"GeForce RTX 4080 SUPER", "0x00002702"},
++  {"GeForce RTX 4080", "0x00002704"},
++  {"GeForce RTX 4070 Ti SUPER", "0x00002705"},
++  {"GeForce RTX 4070 Ti", "0x00002782"},
++  {"GeForce RTX 4070 SUPER", "0x00002783"},
++  {"GeForce RTX 4070", "0x00002786"},
++  {"GeForce RTX 4060 Ti", "0x00002803"},
++  {"GeForce RTX 4060 Ti", "0x00002805"},
++  {"GeForce RTX 4060", "0x00002882"},
++  {"GeForce RTX 4090 Laptop GPU", "0x00002717"},
++  {"GeForce RTX 4090 Laptop GPU", "0x00002757"},
++  {"GeForce RTX 4080 Laptop GPU", "0x000027A0"},
++  {"GeForce RTX 4080 Laptop GPU", "0x000027E0"},
++  {"GeForce RTX 4070 Laptop GPU", "0x00002820"},
++  {"GeForce RTX 4070 Laptop GPU", "0x00002860"},
++  {"GeForce RTX 4060 Laptop GPU", "0x000028A0"},
++  {"GeForce RTX 4060 Laptop GPU", "0x000028E0"},
++  {"GeForce RTX 4050 Laptop GPU", "0x000028A1"},
++  {"GeForce RTX 4050 Laptop GPU", "0x000028E1"},
++  
++  // RTX 30 Series
++  {"GeForce RTX 3090 Ti", "0x00002203"},
++  {"GeForce RTX 3090", "0x00002204"},
++  {"GeForce RTX 3080 Ti", "0x00002208"},
 +  {"GeForce RTX 3080", "0x00002206"},
 +  {"GeForce RTX 3080", "0x0000220A"},
 +  {"GeForce RTX 3080", "0x00002216"},
-+  {"GeForce RTX 3080 Laptop GPU", "0x0000249C"},
-+  {"GeForce RTX 3080 Laptop GPU", "0x000024DC"},
-+  {"GeForce RTX 3080 Ti", "0x00002208"},
++  {"GeForce RTX 3070 Ti", "0x00002482"},
++  {"GeForce RTX 3070", "0x00002484"},
++  {"GeForce RTX 3070", "0x00002488"},
++  {"GeForce RTX 3060 Ti", "0x00002486"},
++  {"GeForce RTX 3060 Ti", "0x00002489"},
++  {"GeForce RTX 3060 Ti", "0x000024C9"},
++  {"GeForce RTX 3060", "0x00002487"},
++  {"GeForce RTX 3060", "0x00002503"},
++  {"GeForce RTX 3060", "0x00002504"},
++  {"GeForce RTX 3050", "0x00002507"},
++  {"GeForce RTX 3050", "0x00002582"},
 +  {"GeForce RTX 3080 Ti Laptop GPU", "0x00002420"},
 +  {"GeForce RTX 3080 Ti Laptop GPU", "0x00002460"},
-+  {"GeForce RTX 3090", "0x00002204"},
-+  {"GeForce RTX 3090 Ti", "0x00002203"},
-+  {"GeForce RTX 4050 Laptop GPU", "0x000028A1"},
-+  {"GeForce RTX 4050 Laptop GPU", "0x000028E1"},
-+  {"GeForce RTX 4060", "0x00002882"},
-+  {"GeForce RTX 4060 Laptop GPU", "0x000028A0"},
-+  {"GeForce RTX 4060 Laptop GPU", "0x000028E0"},
-+  {"GeForce RTX 4060 Ti", "0x00002803"},
-+  {"GeForce RTX 4060 Ti", "0x00002805"},
-+  {"GeForce RTX 4070", "0x00002786"},
-+  {"GeForce RTX 4070 Laptop GPU", "0x00002820"},
-+  {"GeForce RTX 4070 Laptop GPU", "0x00002860"},
-+  {"GeForce RTX 4070 SUPER", "0x00002783"},
-+  {"GeForce RTX 4070 Ti", "0x00002782"},
-+  {"GeForce RTX 4070 Ti SUPER", "0x00002705"},
-+  {"GeForce RTX 4080", "0x00002704"},
-+  {"GeForce RTX 4080 Laptop GPU", "0x000027A0"},
-+  {"GeForce RTX 4080 Laptop GPU", "0x000027E0"},
-+  {"GeForce RTX 4080 SUPER", "0x00002702"},
-+  {"GeForce RTX 4090", "0x00002684"},
-+  {"GeForce RTX 4090 Laptop GPU", "0x00002717"},
-+  {"GeForce RTX 4090 Laptop GPU", "0x00002757"},
-+  {"GeForce RTX 5070", "0x00002F04"},
-+  {"GeForce RTX 5070 Ti", "0x00002C05"},
-+  {"GeForce RTX 5070 Ti Laptop GPU", "0x00002F18"},
-+  {"GeForce RTX 5070 Ti Laptop GPU", "0x00002F58"},
-+  {"GeForce RTX 5080", "0x00002C02"},
-+  {"GeForce RTX 5080 Laptop GPU", "0x00002C19"},
-+  {"GeForce RTX 5080 Laptop GPU", "0x00002C59"},
-+  {"GeForce RTX 5090", "0x00002B85"},
-+  {"GeForce RTX 5090 Laptop GPU", "0x00002C18"},
-+  {"GeForce RTX 5090 Laptop GPU", "0x00002C58"},
++  {"GeForce RTX 3080 Laptop GPU", "0x0000249C"},
++  {"GeForce RTX 3080 Laptop GPU", "0x000024DC"},
++  {"GeForce RTX 3070 Ti Laptop GPU", "0x000024A0"},
++  {"GeForce RTX 3060 Laptop GPU", "0x00002520"},
++  {"GeForce RTX 3060 Laptop GPU", "0x00002560"},
++  {"GeForce RTX 3050 Ti Laptop GPU", "0x000025A0"},
++  {"GeForce RTX 3050 Laptop GPU", "0x000025A2"},
++  {"GeForce RTX 3050 6GB Laptop GPU", "0x000025EC"},
 +};
 +
 +const size_t kGpuModelCount = sizeof(kGpuModels) / sizeof(kGpuModels[0]);

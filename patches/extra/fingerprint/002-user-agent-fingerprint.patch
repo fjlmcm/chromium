@@ -121,17 +121,18 @@ index 9517c46f06..7dccd81929 100644
  #include "net/http/structured_headers.h"
  #include "third_party/blink/public/common/features.h"
 
-@@ -204,4 +206,120 @@ bool operator==(const UserAgentOverride& a, const UserAgentOverride& b) {
+@@ -204,4 +206,132 @@ bool operator==(const UserAgentOverride& a, const UserAgentOverride& b) {
           a.ua_metadata_override == b.ua_metadata_override;
  }
 
++// Applies fingerprint modifications to User-Agent metadata
 +void UpdateUserAgentMetadataFingerprint(blink::UserAgentMetadata* metadata) {
 +  if (!metadata)
 +    return;
 +
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +
-+  // Handle brand information
++  // Handle brand information modification
 +  std::string display_brand;
 +  std::string version;
 +  std::string main_version;
@@ -148,6 +149,7 @@ index 9517c46f06..7dccd81929 100644
 +      version = custom_version.empty() ? metadata->full_version : custom_version;
 +      main_version = version.substr(0, version.find('.'));
 +
++      // Update existing Chromium entry in brand list
 +      for (auto& brand_full_version : metadata->brand_full_version_list) {
 +        if (brand_full_version.brand == "Chromium") {
 +          brand_full_version.version = version;
@@ -176,6 +178,7 @@ index 9517c46f06..7dccd81929 100644
 +    }
 +    main_version = version.substr(0, version.find('.'));
 +  } else {
++    // Default to Chrome if no specific brand is set
 +    display_brand = "Google Chrome";
 +    version = metadata->full_version;
 +    main_version = metadata->full_version.substr(0, metadata->full_version.find('.'));
@@ -186,58 +189,73 @@ index 9517c46f06..7dccd81929 100644
 +  metadata->brand_full_version_list.push_back({display_brand, version});
 +  metadata->full_version = version;
 +
-+  // Handle platform information
++  // Handle platform information modification
 +  if (command_line->HasSwitch(switches::kFingerprintPlatform)) {
 +    std::string platform_value = command_line->GetSwitchValueASCII(switches::kFingerprintPlatform);
 +
++    // Set platform-specific values based on the requested platform
 +    if (platform_value == "windows") {
 +      metadata->platform = "Windows";
-+      metadata->platform_version = "19.0.0";
++      metadata->platform_version = "10.0.0";
++      
++      // Set architecture to match Windows platform
++      metadata->architecture = "x86";
++      metadata->wow64 = true;
++      
++      // Get specific platform version if provided
++      if (command_line->HasSwitch(switches::kFingerprintPlatformVersion)) {
++        metadata->platform_version = 
++            command_line->GetSwitchValueASCII(switches::kFingerprintPlatformVersion);
++      }
 +    } else if (platform_value == "linux") {
 +      metadata->platform = "Linux";
 +      metadata->platform_version = "6.8.0";
++      
++      // Set architecture to match Linux platform
++      metadata->architecture = "x86";
++      metadata->wow64 = false;
++      
++      // Get specific platform version if provided
++      if (command_line->HasSwitch(switches::kFingerprintPlatformVersion)) {
++        metadata->platform_version = 
++            command_line->GetSwitchValueASCII(switches::kFingerprintPlatformVersion);
++      }
 +    } else if (platform_value == "macos") {
 +      metadata->platform = "macOS";
-+      metadata->platform_version = "15.2.0";
-+      metadata->architecture = "arm";
-+    }
-+
-+    if (command_line->HasSwitch(switches::kFingerprintPlatformVersion)) {
-+      std::string version_value = command_line->GetSwitchValueASCII(
-+          switches::kFingerprintPlatformVersion);
-+      if (!version_value.empty()) {
-+        metadata->platform_version = version_value;
++      metadata->platform_version = "10.15.7";
++      
++      // Set architecture to match macOS platform
++      metadata->architecture = "x86";
++      metadata->wow64 = false;
++      
++      // Get specific platform version if provided
++      if (command_line->HasSwitch(switches::kFingerprintPlatformVersion)) {
++        metadata->platform_version = 
++            command_line->GetSwitchValueASCII(switches::kFingerprintPlatformVersion);
 +      }
 +    }
 +  }
++
++  // Add Mozilla compatibility token for all browsers
++  metadata->brand_version_list.push_back({"Mozilla", "5.0"});
 +}
 +
++// Returns the brand info to append to User-Agent string
 +std::string GetUserAgentFingerprintBrandInfo() {
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-+
-+  // Return empty string if no brand parameter is set
-+  if (!command_line->HasSwitch(switches::kFingerprintBrand)) {
-+    return "";
++  
++  // Only add brand info if fingerprint-brand is specified
++  if (command_line->HasSwitch(switches::kFingerprintBrand)) {
++    std::string brand = command_line->GetSwitchValueASCII(switches::kFingerprintBrand);
++    if (brand == "Chrome")
++      return " Chrome/134.0.0.0";
++    else if (brand == "Edge")
++      return " Edg/134.0.0.0";
++    else if (brand == "Opera")
++      return " OPR/119.0.0.0";
++    else if (brand == "Vivaldi")
++      return " Vivaldi/7.3.0.0";
 +  }
-+
-+  std::string brand = command_line->GetSwitchValueASCII(switches::kFingerprintBrand);
-+  std::string version = command_line->HasSwitch(switches::kFingerprintBrandVersion)
-+      ? command_line->GetSwitchValueASCII(switches::kFingerprintBrandVersion)
-+      : "";
-+
-+  // Handle different browser brands
-+  if (brand == "Chrome") {
-+    return "";
-+  } else if (brand == "Edge") {
-+    return " Edg/" + (version.empty() ? "134.0.3124.129" : version);
-+  } else if (brand == "Opera") {
-+    return " OPR/" + (version.empty() ? "119.0.0.0" : version);
-+  } else if (brand == "Vivaldi") {
-+    return " Vivaldi/" + (version.empty() ? "7.3.3635.11" : version);
-+  } else if (!brand.empty()) {
-+    return " " + brand + "/" + (version.empty() ? brand : version);
-+  }
-+
 +  return "";
 +}
 +

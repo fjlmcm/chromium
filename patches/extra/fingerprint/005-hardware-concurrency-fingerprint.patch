@@ -16,14 +16,14 @@ index f5c0db2d1b..0713fc4442 100644
  unsigned NavigatorConcurrentHardware::hardwareConcurrency() const {
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +
-+  // Check for directly specified hardware concurrency value
++  // Check if a specific hardware concurrency value is directly specified
 +  if (command_line->HasSwitch(switches::kFingerprintHardwareConcurrency)) {
 +    std::string value = command_line->GetSwitchValueASCII(switches::kFingerprintHardwareConcurrency);
 +    unsigned long custom_concurrency = std::stoul(value);
 +    return static_cast<unsigned>(custom_concurrency);
 +  }
 +
-+  // If not directly specified, calculate from fingerprint parameter
++  // If no direct value specified, calculate based on fingerprint parameter
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
 +    std::string fingerprint_str = command_line->GetSwitchValueASCII(switches::kFingerprint);
 +    uint32_t fingerprint = static_cast<uint32_t>(std::stoull(fingerprint_str));

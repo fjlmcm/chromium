@@ -20,36 +20,69 @@ index b3a4c782c6..c417182fbb 100644
  #include "build/build_config.h"
  #include "skia/ext/font_utils.h"
  #include "third_party/blink/public/common/features.h"
-@@ -155,6 +158,35 @@ const FontPlatformData* FontCache::GetFontPlatformData(
+@@ -155,6 +158,68 @@ const FontPlatformData* FontCache::GetFontPlatformData(
      PlatformInit();
    }
  
-+  // Get command line arguments
++  // Check for fingerprint protection command line flag
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
-+    // Define basic font list
-+    static const char* basic_fonts[] = {
-+      "Arial",
-+      "Times New Roman",
-+      "Courier New",
-+      "Georgia",
-+      "Verdana"
++    // Define protected font families across platforms
++    static const char* protected_fonts[] = {
++      // Core web fonts
++      "Arial", "Times New Roman", "Courier New", "Georgia", "Verdana",
++      "Tahoma", "Trebuchet MS", "Impact", "Comic Sans MS", "Webdings",
++      "Garamond", "Palatino Linotype", "Book Antiqua", "Century Gothic",
++      
++      // System UI fonts
++      "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI",
++      "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
++      "Helvetica Neue", "sans-serif", "serif", "monospace", "cursive", "fantasy",
++      
++      // Monospace fonts
++      "Consolas", "Monaco", "Menlo", "Liberation Mono", "Courier",
++      "Andale Mono", "Lucida Console", "DejaVu Sans Mono",
++      
++      // Platform-specific fonts - Windows
++      "Segoe UI", "Calibri", "Cambria", "Candara", "Constantia", "Corbel",
++      "Segoe Print", "Segoe Script", "MS Sans Serif", "MS Serif",
++      
++      // Platform-specific fonts - macOS
++      "SF Pro", "SF Pro Text", "Helvetica", "Helvetica Neue", 
++      "Lucida Grande", "Avenir", "Avenir Next",
++      
++      // Platform-specific fonts - Linux
++      "Noto Sans", "Noto Serif", "DejaVu Sans", "DejaVu Serif", 
++      "Liberation Sans", "Liberation Serif", "FreeSans", "FreeSerif"
 +    };
 +
-+    // Check if it's a custom font (non-system font)
 +    if (creation_params.CreationType() == kCreateFontByFamily) {
-+      // Get fingerprint value as seed
-+      std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
-+      uint32_t seed;
-+      if (base::StringToUint(fingerprint, &seed)) {
-+        uint32_t hash = std::hash<String>{}(creation_params.Family());
-+        hash = hash ^ seed;  // Mix fingerprint value into hash
-+        
-+        // No longer block system fonts, but adjust font non-critical parameters
-+        // If future implementation needs to add subtle changes to font objects,
-+        // FontPlatformData object can be modified here
-+        // For example, slightly adjust font size or other rendering parameters
-+        // This comment is preserved for future implementation
++      // Check if this is a protected font that should always be available
++      bool is_protected_font = false;
++      for (const char* font : protected_fonts) {
++        if (creation_params.Family().Contains(font, kTextCaseASCIIInsensitive)) {
++          is_protected_font = true;
++          break;
++        }
++      }
++
++      // If not a protected font, apply fingerprinting protection
++      if (!is_protected_font) {
++        // Get fingerprint value as seed for consistent randomization
++        std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
++        uint32_t seed;
++        if (base::StringToUint(fingerprint, &seed)) {
++          // Generate hash from font family name + fingerprint seed
++          uint32_t hash = std::hash<String>{}(creation_params.Family());
++          hash = hash ^ seed;  // Mix in the fingerprint seed
++          
++          // 25% probability of blocking this font (reduced from 50%)
++          // This provides better web compatibility while still offering protection
++          if (hash % 4 == 0) {
++            // Return nullptr to indicate font is not available
++            return nullptr;
++          }
++        }
 +      }
 +    }
 +  }
