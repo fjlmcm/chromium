@@ -4,12 +4,12 @@ index 2876aad298..e487401680 100644
 +++ b/third_party/blink/renderer/core/frame/navigator_device_memory.cc
 @@ -14,7 +14,9 @@
  namespace blink {
- 
+
  float NavigatorDeviceMemory::deviceMemory() const {
 -  return ApproximatedDeviceMemory::GetApproximatedDeviceMemory();
 +  // Return fixed value to prevent memory-based fingerprinting
 +  // Maximum value is 8GB for historical compatibility
 +  return 8;
  }
- 
- }  // namespace blink 
+
+ }  // namespace blink

@@ -4,15 +4,15 @@ index f5c0db2d1b..0713fc4442 100644
 +++ b/third_party/blink/renderer/core/frame/navigator_concurrent_hardware.cc
 @@ -3,12 +3,30 @@
  // found in the LICENSE file.
- 
+
  #include "third_party/blink/renderer/core/frame/navigator_concurrent_hardware.h"
 -
 +#include "base/command_line.h"
  #include "base/system/sys_info.h"
 +#include "components/ungoogled/ungoogled_switches.h"
- 
+
  namespace blink {
- 
+
  unsigned NavigatorConcurrentHardware::hardwareConcurrency() const {
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +
@@ -33,4 +33,4 @@ index f5c0db2d1b..0713fc4442 100644
 +
 +  // Return actual processor count if no fingerprinting is enabled
    return static_cast<unsigned>(base::SysInfo::NumberOfProcessors());
- } 
+ }
