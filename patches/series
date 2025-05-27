@@ -114,8 +114,10 @@ extra/ungoogled-chromium/add-flag-to-spoof-webgl-renderer-info.patch
 extra/fingerprint/000-add-fingerprint-switches.patch
 extra/fingerprint/001-disable-runtime.enable.patch
 extra/fingerprint/002-user-agent-fingerprint.patch
+extra/fingerprint/003-audio-fingerprint.patch
 extra/fingerprint/004-plugin-fingerprint.patch
 extra/fingerprint/005-hardware-concurrency-fingerprint.patch
+extra/fingerprint/005b-device-memory-fingerprint.patch
 extra/fingerprint/006-font-fingerprint.patch
 extra/fingerprint/007-shadow-root.patch
 extra/fingerprint/008-fix-client-rects-and-canvas-fingerprint.patch
