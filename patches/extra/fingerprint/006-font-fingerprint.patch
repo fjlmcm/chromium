@@ -5,7 +5,7 @@ index b3a4c782c6..c417182fbb 100644
 @@ -32,14 +32,17 @@
  #include <limits>
  #include <memory>
-
+ 
 +#include "base/command_line.h"
  #include "base/debug/alias.h"
  #include "base/feature_list.h"
@@ -20,70 +20,35 @@ index b3a4c782c6..c417182fbb 100644
  #include "build/build_config.h"
  #include "skia/ext/font_utils.h"
  #include "third_party/blink/public/common/features.h"
-@@ -155,6 +158,67 @@ const FontPlatformData* FontCache::GetFontPlatformData(
+@@ -155,6 +158,35 @@ const FontPlatformData* FontCache::GetFontPlatformData(
      PlatformInit();
    }
-
-+  // Apply font fingerprinting protection when enabled
+ 
++  // 获取命令行参数
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
-+    // Define essential system fonts that should always be available
-+    // to maintain basic functionality and avoid breaking web content
-+    static const char* essential_fonts[] = {
-+      // Core web fonts
-+      "Arial", "Helvetica", "Times", "Times New Roman", "Courier", "Courier New",
-+      "Georgia", "Verdana", "Tahoma", "Trebuchet MS", "Impact", "Comic Sans MS",
-+      // System UI fonts
-+      "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto",
-+      "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-+      // Monospace fonts
-+      "Monaco", "Menlo", "Consolas", "Liberation Mono", "DejaVu Sans Mono",
-+      // Fallback fonts
-+      "sans-serif", "serif", "monospace", "cursive", "fantasy",
-+      // Windows system fonts
-+      "Segoe UI", "Calibri", "Cambria", "Candara", "Corbel", "Constantia",
-+      // macOS system fonts
-+      "San Francisco", "SF Pro Display", "SF Pro Text", "Lucida Grande",
-+      // Linux common fonts
-+      "Liberation Sans", "Liberation Serif", "Liberation Mono", "DejaVu Sans",
-+      "DejaVu Serif", "DejaVu Sans Mono", "Noto Sans", "Noto Serif"
++    // 定义基础字体列表
++    static const char* basic_fonts[] = {
++      "Arial",
++      "Times New Roman",
++      "Courier New",
++      "Georgia",
++      "Verdana"
 +    };
 +
++    // 检查是否是自定义字体（非系统字体）
 +    if (creation_params.CreationType() == kCreateFontByFamily) {
-+      const String& font_family = creation_params.Family();
-+
-+      // Check if this is an essential font that should always be available
-+      bool is_essential_font = false;
-+      for (const char* essential_font : essential_fonts) {
-+        if (font_family.EqualIgnoringASCIICase(essential_font)) {
-+          is_essential_font = true;
-+          break;
-+        }
-+      }
-+
-+      // Only apply fingerprinting protection to non-essential fonts
-+      if (!is_essential_font) {
-+        // Get fingerprint value as seed for deterministic behavior
-+        std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
-+        uint32_t seed;
-+        if (base::StringToUint(fingerprint, &seed)) {
-+          // Create a hash combining font name and fingerprint seed
-+          uint32_t hash = std::hash<String>{}(font_family);
-+          hash = hash ^ seed;
-+
-+          // Use a more conservative approach: only hide ~25% of non-essential fonts
-+          // This reduces fingerprinting while maintaining better web compatibility
-+          if ((hash % 4) == 0) {
-+            return nullptr;  // Font not available
-+          }
-+
-+          // For remaining fonts, occasionally return a substitute font
-+          // to further obfuscate the real font list
-+          if ((hash % 8) == 1) {
-+            // Return a common fallback instead of the requested font
-+            // This will be handled by the font fallback mechanism
-+          }
-+        }
++      // 获取fingerprint值作为种子
++      std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
++      uint32_t seed;
++      if (base::StringToUint(fingerprint, &seed)) {
++        uint32_t hash = std::hash<String>{}(creation_params.Family());
++        hash = hash ^ seed;  // 将fingerprint值混入hash
++        
++        // 不再屏蔽系统字体，而是调整字体的一些非关键参数
++        // 如果将来需要向字体对象添加微小变化，可以在这里修改FontPlatformData对象
++        // 例如，可以稍微调整字体大小或其他渲染参数
++        // 这里先保留注释，等待后续实现
 +      }
 +    }
 +  }
