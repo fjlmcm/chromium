@@ -24,10 +24,10 @@ index b3a4c782c6..c417182fbb 100644
      PlatformInit();
    }
  
-+  // 获取命令行参数
++  // Get command line arguments
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
-+    // 定义基础字体列表
++    // Define basic font list
 +    static const char* basic_fonts[] = {
 +      "Arial",
 +      "Times New Roman",
@@ -36,19 +36,20 @@ index b3a4c782c6..c417182fbb 100644
 +      "Verdana"
 +    };
 +
-+    // 检查是否是自定义字体（非系统字体）
++    // Check if it's a custom font (non-system font)
 +    if (creation_params.CreationType() == kCreateFontByFamily) {
-+      // 获取fingerprint值作为种子
++      // Get fingerprint value as seed
 +      std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
 +      uint32_t seed;
 +      if (base::StringToUint(fingerprint, &seed)) {
 +        uint32_t hash = std::hash<String>{}(creation_params.Family());
-+        hash = hash ^ seed;  // 将fingerprint值混入hash
++        hash = hash ^ seed;  // Mix fingerprint value into hash
 +        
-+        // 不再屏蔽系统字体，而是调整字体的一些非关键参数
-+        // 如果将来需要向字体对象添加微小变化，可以在这里修改FontPlatformData对象
-+        // 例如，可以稍微调整字体大小或其他渲染参数
-+        // 这里先保留注释，等待后续实现
++        // No longer block system fonts, but adjust font non-critical parameters
++        // If future implementation needs to add subtle changes to font objects,
++        // FontPlatformData object can be modified here
++        // For example, slightly adjust font size or other rendering parameters
++        // This comment is preserved for future implementation
 +      }
 +    }
 +  }

@@ -33,28 +33,28 @@ index 37d68606cc..3e49c71def 100644
 +    bool conversion_success = base::StringToUint(seed_str, &seed);
 +    
 +    if (conversion_success) {
-+      // 使用FNV-1a hash算法生成两个不同的hash值
++      // Use FNV-1a hash algorithm to generate two different hash values
 +      constexpr uint32_t FNV_PRIME = 16777619u;
 +      constexpr uint32_t FNV_OFFSET = 2166136261u;
 +
-+      // 为x生成hash
++      // Generate hash for x
 +      uint32_t hash_val_x = FNV_OFFSET;
 +      hash_val_x ^= seed;
 +      hash_val_x *= FNV_PRIME;
 +      hash_val_x ^= (seed >> 16);
 +      
-+      // 为y生成不同的hash
++      // Generate different hash for y
 +      uint32_t hash_val_y = FNV_OFFSET;
-+      hash_val_y ^= ~seed;  // 使用seed的按位取反
++      hash_val_y ^= ~seed;  // Use bitwise negation of seed
 +      hash_val_y *= FNV_PRIME;
 +      hash_val_y ^= (seed >> 8);
 +      
-+      // 将hash值转换为非常小的噪声因子 (-0.0001% 到 0.0001%)
-+      // 减小了原始值的三分之一以最小化视觉影响
++      // Convert hash values to very small noise factors (-0.0001% to 0.0001%)
++      // Reduced to one third of original value to minimize visual impact
 +      double rand_x = static_cast<double>(hash_val_x) / std::numeric_limits<uint32_t>::max();
 +      double rand_y = static_cast<double>(hash_val_y) / std::numeric_limits<uint32_t>::max();
 +      
-+      // 计算最终的噪声因子
++      // Calculate final noise factors
 +      noise_factor_x_ = 1 + (rand_x - 0.5) * 0.000001;
 +      noise_factor_y_ = 1 + (rand_y - 0.5) * 0.000001;
 +    }
@@ -219,7 +219,7 @@ index 78f821f760..dc85d93b0c 100644
  
  #define writable_addr(T, p, stride, x, y) (T*)((const char *)p + y * stride + x * sizeof(T))
  
-+// FNV-1a hash 函数实现
++// FNV-1a hash function implementation
 +uint32_t GetFNVHash(uint32_t val, uint32_t seed) {
 +  constexpr uint32_t FNV_PRIME = 16777619u;
 +  constexpr uint32_t FNV_OFFSET = 2166136261u;
@@ -233,7 +233,7 @@ index 78f821f760..dc85d93b0c 100644
 +  return hash;
 +}
 +
-+// 生成 0-1 之间的确定性浮点数
++// Generate deterministic float between 0-1
 +double GetNormalizedHash(uint32_t hash) {
 +  return (hash & 0xFFFFFFFF) / 4294967295.0;
 +}
@@ -247,7 +247,7 @@ index 78f821f760..dc85d93b0c 100644
  
 -  // generate the first random number here
 -  double shuffleX = base::RandDouble();
-+  // 获取 fingerprint
++  // Get fingerprint seed
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  uint32_t seed = 0;
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
@@ -255,17 +255,17 @@ index 78f821f760..dc85d93b0c 100644
 +    base::StringToUint(seed_str, &seed);
 +  }
 +
-+  // 使用 fingerprint 生成确定性的 X 坐标散列
++  // Use fingerprint to generate deterministic X coordinate hash
 +  uint32_t hash_x = GetFNVHash(w, seed);
 +  double shuffleX = GetNormalizedHash(hash_x);
  
    // cap maximum pixels to change
    auto pixels = (w + h) / 128;
 @@ -141,6 +171,7 @@ void StaticBitmapImage::ShuffleSubchannelColorData(const void *addr, const SkIma
-   // 注意：以下是对像素数量的限制，减少了对图像的改动以保持更好的用户体验
+   // Note: This limits the number of pixels modified to preserve better user experience
    if (pixels > 16)
      pixels = 16;
-+  pixels = pixels > 8 ? 8 : pixels;  // 进一步减少修改的像素数量
++  pixels = pixels > 8 ? 8 : pixels;  // Further reduce modified pixel count
  
    auto fRowBytes = info.minRowBytes();
    auto colorType = info.colorType();
@@ -275,8 +275,8 @@ index 78f821f760..dc85d93b0c 100644
  
 -  // second random number (for y/height)
 -  double shuffleY = base::RandDouble();
-+  // 生成确定性的 Y 坐标散列
-+  uint32_t hash_y = GetFNVHash(h, ~seed);  // 使用 seed 的按位取反来生成不同的散列
++  // Generate deterministic Y coordinate hash
++  uint32_t hash_y = GetFNVHash(h, ~seed);  // Use bitwise negation of seed for different hash
 +  double shuffleY = GetNormalizedHash(hash_y);
  
    // calculate random coordinates using bisection
@@ -288,9 +288,9 @@ index 78f821f760..dc85d93b0c 100644
 -    uint8_t shuffleR = base::RandInt(0, 4);
 -    uint8_t shuffleG = (shuffleR + x) % 4;
 -    uint8_t shuffleB = (shuffleG + y) % 4;
-+    // 减小颜色通道的随机变化范围以提高视觉保真度
++    // Reduce color channel random variation range to improve visual fidelity
 +    uint32_t hash_r = GetFNVHash(x+y, seed);
-+    uint8_t shuffleR = hash_r % 3;  // 减少从0-4到0-2
++    uint8_t shuffleR = hash_r % 3;  // Reduced from 0-4 to 0-2
 +    
 +    uint8_t shuffleG = (shuffleR + x) % 3;
 +    uint8_t shuffleB = (shuffleG + y) % 3;
