@@ -30,7 +30,7 @@ index b3a4c782c6..94b4ffbacb 100644
  const FontPlatformData* FontCache::GetFontPlatformData(
      const FontDescription& font_description,
      const FontFaceCreationParams& creation_params,
-@@ -155,6 +161,47 @@ const FontPlatformData* FontCache::GetFontPlatformData(
+@@ -155,6 +161,118 @@ const FontPlatformData* FontCache::GetFontPlatformData(
      PlatformInit();
    }
  

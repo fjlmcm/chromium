@@ -1,82 +1,3 @@
-diff --git a/third_party/blink/renderer/modules/font_access/font_manager.cc b/third_party/blink/renderer/modules/font_access/font_manager.cc
-index aaaa111111..bbbb222222 100644
---- a/third_party/blink/renderer/modules/font_access/font_manager.cc
-+++ b/third_party/blink/renderer/modules/font_access/font_manager.cc
-@@ -8,6 +8,9 @@
- #include "third_party/blink/renderer/core/execution_context/execution_context.h"
- #include "third_party/blink/renderer/platform/bindings/exception_state.h"
- #include "third_party/blink/renderer/platform/bindings/script_promise_resolver.h"
-+#include "base/command_line.h"
-+#include "components/ungoogled/ungoogled_switches.h"
-+#include "third_party/blink/renderer/platform/fonts/font_family_names.h"
- 
- namespace blink {
- 
-@@ -39,6 +42,62 @@ ScriptPromise<IDLSequence<FontData>> FontManager::query(
-     return EmptyPromise();
-   }
- 
-+  // Apply font fingerprinting resistance
-+  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-+  if (command_line->HasSwitch(switches::kFingerprint)) {
-+    // Return a curated, fingerprint-specific font list instead of actual system fonts
-+    auto* resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLSequence<FontData>>>(
-+        script_state, exception_state.GetContext());
-+    auto promise = resolver->Promise();
-+    
-+    std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
-+    uint32_t fingerprint_hash = std::hash<std::string>{}(fingerprint);
-+    
-+    HeapVector<Member<FontData>> font_list;
-+    
-+    // Define comprehensive font profiles based on common system configurations
-+    struct FontProfile {
-+      const char* name;
-+      const char* full_name;
-+      const char* family;
-+      const char* style;
-+      bool include_condition;
-+    };
-+    
-+    FontProfile base_fonts[] = {
-+      {"Arial", "Arial", "Arial", "Regular", true},
-+      {"ArialBold", "Arial Bold", "Arial", "Bold", true},
-+      {"ArialItalic", "Arial Italic", "Arial", "Italic", true},
-+      {"TimesNewRoman", "Times New Roman", "Times New Roman", "Regular", true},
-+      {"TimesNewRomanBold", "Times New Roman Bold", "Times New Roman", "Bold", true},
-+      {"CourierNew", "Courier New", "Courier New", "Regular", true},
-+      {"Verdana", "Verdana", "Verdana", "Regular", fingerprint_hash % 10 < 8},
-+      {"Georgia", "Georgia", "Georgia", "Regular", fingerprint_hash % 10 < 7},
-+      {"Tahoma", "Tahoma", "Tahoma", "Regular", fingerprint_hash % 10 < 6},
-+      {"Calibri", "Calibri", "Calibri", "Regular", fingerprint_hash % 10 < 5},
-+      {"Cambria", "Cambria", "Cambria", "Regular", fingerprint_hash % 10 < 4},
-+      {"Consolas", "Consolas", "Consolas", "Regular", fingerprint_hash % 10 < 3},
-+      {"SegoeUI", "Segoe UI", "Segoe UI", "Regular", fingerprint_hash % 10 < 7},
-+      {"TrebuchetMS", "Trebuchet MS", "Trebuchet MS", "Regular", fingerprint_hash % 10 < 4},
-+      {"ComicSansMS", "Comic Sans MS", "Comic Sans MS", "Regular", fingerprint_hash % 10 < 2},
-+      {"Impact", "Impact", "Impact", "Regular", fingerprint_hash % 10 < 3},
-+      {"MicrosoftYaHei", "Microsoft YaHei", "Microsoft YaHei", "Regular", fingerprint_hash % 8 < 4},
-+      {"SimSun", "SimSun", "SimSun", "Regular", fingerprint_hash % 8 < 5},
-+    };
-+    
-+    for (const auto& font : base_fonts) {
-+      if (font.include_condition) {
-+        FontData* font_data = FontData::Create();
-+        font_data->setFamily(font.family);
-+        font_data->setFullName(font.full_name);
-+        font_data->setPostscriptName(font.name);
-+        font_data->setStyle(font.style);
-+        font_list.push_back(font_data);
-+      }
-+    }
-+    
-+    resolver->Resolve(font_list);
-+    return promise;
-+  }
-+
-   // Original implementation continues here...
-   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLSequence<FontData>>>(
-       script_state, exception_state.GetContext());
 diff --git a/content/browser/font_access/font_enumeration_cache.cc b/content/browser/font_access/font_enumeration_cache.cc
 index cccc333333..dddd444444 100644
 --- a/content/browser/font_access/font_enumeration_cache.cc
@@ -90,7 +11,7 @@ index cccc333333..dddd444444 100644
  
  namespace content {
  
-@@ -34,6 +36,70 @@ void FontEnumerationCache::QueueShareMemoryRegionWhenReady(
+@@ -34,6 +36,24 @@ void FontEnumerationCache::QueueShareMemoryRegionWhenReady(
      base::OnceCallback<void(base::ReadOnlySharedMemoryRegion)> callback,
      scoped_refptr<base::SequencedTaskRunner> callback_task_runner) {
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -98,67 +19,18 @@ index cccc333333..dddd444444 100644
 +  // Apply font fingerprinting protection
 +  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
-+    // Create a synthetic font list based on fingerprint
-+    std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
-+    uint32_t fingerprint_hash = std::hash<std::string>{}(fingerprint);
-+    
-+    blink::FontEnumerationTable font_table;
-+    
-+    // Define a comprehensive but controlled font list
-+    struct SyntheticFont {
-+      const char* postscript_name;
-+      const char* full_name;
-+      const char* family;
-+      const char* style;
-+      int weight;
-+      bool italic;
-+      bool include_condition;
-+    };
-+    
-+    SyntheticFont synthetic_fonts[] = {
-+      {"Arial-Regular", "Arial", "Arial", "Regular", 400, false, true},
-+      {"Arial-Bold", "Arial Bold", "Arial", "Bold", 700, false, true},
-+      {"Arial-Italic", "Arial Italic", "Arial", "Italic", 400, true, true},
-+      {"Arial-BoldItalic", "Arial Bold Italic", "Arial", "Bold Italic", 700, true, true},
-+      {"TimesNewRomanPS-Regular", "Times New Roman", "Times New Roman", "Regular", 400, false, true},
-+      {"TimesNewRomanPS-Bold", "Times New Roman Bold", "Times New Roman", "Bold", 700, false, true},
-+      {"CourierNewPS-Regular", "Courier New", "Courier New", "Regular", 400, false, true},
-+      {"Verdana-Regular", "Verdana", "Verdana", "Regular", 400, false, fingerprint_hash % 10 < 8},
-+      {"Georgia-Regular", "Georgia", "Georgia", "Regular", 400, false, fingerprint_hash % 10 < 7},
-+      {"Tahoma-Regular", "Tahoma", "Tahoma", "Regular", 400, false, fingerprint_hash % 10 < 6},
-+      {"Calibri-Regular", "Calibri", "Calibri", "Regular", 400, false, fingerprint_hash % 10 < 5},
-+      {"Cambria-Regular", "Cambria", "Cambria", "Regular", 400, false, fingerprint_hash % 10 < 4},
-+      {"Consolas-Regular", "Consolas", "Consolas", "Regular", 400, false, fingerprint_hash % 10 < 3},
-+      {"SegoeUI-Regular", "Segoe UI", "Segoe UI", "Regular", 400, false, fingerprint_hash % 10 < 7},
-+      {"TrebuchetMS-Regular", "Trebuchet MS", "Trebuchet MS", "Regular", 400, false, fingerprint_hash % 10 < 4},
-+      {"ComicSansMS-Regular", "Comic Sans MS", "Comic Sans MS", "Regular", 400, false, fingerprint_hash % 10 < 2},
-+      {"Impact-Regular", "Impact", "Impact", "Regular", 700, false, fingerprint_hash % 10 < 3},
-+      {"MicrosoftYaHei-Regular", "Microsoft YaHei", "Microsoft YaHei", "Regular", 400, false, fingerprint_hash % 8 < 4},
-+      {"SimSun-Regular", "SimSun", "SimSun", "Regular", 400, false, fingerprint_hash % 8 < 5},
-+    };
-+    
-+    for (const auto& font : synthetic_fonts) {
-+      if (font.include_condition) {
-+        blink::FontEnumerationTable_FontMetadata font_metadata;
-+        font_metadata.postscript_name = font.postscript_name;
-+        font_metadata.full_name = font.full_name;
-+        font_metadata.family = font.family;
-+        font_metadata.style = font.style;
-+        font_metadata.weight = font.weight;
-+        font_metadata.italic = font.italic;
-+        font_table.fonts.push_back(std::move(font_metadata));
-+      }
++    // Create empty shared memory region to prevent font enumeration
++    base::MappedReadOnlyRegion region = base::ReadOnlySharedMemoryRegion::Create(1024);
++    if (region.region.IsValid()) {
++      // Clear the memory
++      memset(region.mapping.memory(), 0, region.mapping.size());
++      
++      // Return empty font list through callback
++      callback_task_runner->PostTask(
++          FROM_HERE, 
++          base::BindOnce(std::move(callback), std::move(region.region)));
++      return;
 +    }
-+    
-+    // Create shared memory region with synthetic font data
-+    base::MappedReadOnlyRegion region = base::ReadOnlySharedMemoryRegion::Create(
-+        sizeof(blink::FontEnumerationTable) + (font_table.fonts.size() * sizeof(blink::FontEnumerationTable_FontMetadata)));
-+    
-+    // Copy synthetic font data to shared memory
-+    // Implementation details would go here...
-+    
-+    callback_task_runner->PostTask(FROM_HERE, base::BindOnce(std::move(callback), std::move(region.region)));
-+    return;
 +  }
  
    if (status_ == kReady) {
@@ -167,9 +39,7 @@ diff --git a/third_party/blink/renderer/platform/fonts/font_cache.cc b/third_par
 index 1234567890..9876543210 100644
 --- a/third_party/blink/renderer/platform/fonts/font_cache.cc
 +++ b/third_party/blink/renderer/platform/fonts/font_cache.cc
-@@ -180,6 +180,12 @@ const FontPlatformData* FontCache::GetFontPlatformData(
-           return nullptr;
-         }
+@@ -270,6 +270,15 @@ const FontPlatformData* FontCache::GetFontPlatformData(
        } else {
 +        // Check for virtualized fonts first
 +        AtomicString virtualized = font_family_names::GetVirtualizedFontFamily(
