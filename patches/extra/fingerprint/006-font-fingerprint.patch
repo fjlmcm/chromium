@@ -20,17 +20,7 @@ index b3a4c782c6..94b4ffbacb 100644
  #include "build/build_config.h"
  #include "skia/ext/font_utils.h"
  #include "third_party/blink/public/common/features.h"
-@@ -144,6 +147,9 @@ const FontPlatformData* FontCache::SystemFontPlatformData(
- }
- #endif
- 
-+// Font fingerprinting mitigation
-+// Current approach: filter fonts based on fingerprint seed
-+// Future enhancement: virtualize fonts with mapping to existing ones
- const FontPlatformData* FontCache::GetFontPlatformData(
-     const FontDescription& font_description,
-     const FontFaceCreationParams& creation_params,
-@@ -155,6 +161,68 @@ const FontPlatformData* FontCache::GetFontPlatformData(
+@@ -155,6 +158,48 @@ const FontPlatformData* FontCache::GetFontPlatformData(
      PlatformInit();
    }
  
@@ -39,58 +29,38 @@ index b3a4c782c6..94b4ffbacb 100644
 +    if (creation_params.CreationType() == kCreateFontByFamily) {
 +      std::string font_family = creation_params.Family().Utf8();
 +      
-+      // Define basic font list for consistent fingerprinting
-+      static const char* basic_fonts[] = {
++      // Define basic font whitelist for consistent fingerprinting
++      static const char* allowed_fonts[] = {
 +        "Arial", "Times New Roman", "Courier New", "Verdana", "Georgia",
-+        "Tahoma", "Trebuchet MS", "Comic Sans MS", "Impact", "Calibri",
-+        "Cambria", "Consolas", "Segoe UI", "Microsoft YaHei", "SimSun"
++        "Tahoma", "Trebuchet MS", "Calibri", "Segoe UI", 
++        "Microsoft YaHei", "SimSun"
 +      };
 +      
-+      // Check if font is in basic list
-+      bool is_basic_font = false;
-+      for (const char* font : basic_fonts) {
++      // Check if font is in whitelist
++      bool is_allowed = false;
++      for (const char* font : allowed_fonts) {
 +        if (font_family == font) {
-+          is_basic_font = true;
++          is_allowed = true;
 +          break;
 +        }
 +      }
 +      
-+      // Get fingerprint seed
-+      std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
-+      uint32_t fingerprint_hash = std::hash<std::string>{}(fingerprint);
-+      
-+      if (!is_basic_font) {
-+        // Unknown font - use probability-based filtering
++      if (!is_allowed) {
++        // Get fingerprint seed for unknown fonts
++        std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
 +        std::string combined = fingerprint + font_family;
 +        uint32_t hash = std::hash<std::string>{}(combined);
 +        
-+        // Use probability distribution based on font characteristics
-+        float base_probability = 0.15f;
++        // Use probability filtering for unknown fonts
++        float probability = static_cast<float>(hash % 100) / 100.0f;
 +        
-+        // Adjust probability based on font name characteristics
-+        if (font_family.find("Symbol") != std::string::npos ||
-+            font_family.find("Wingdings") != std::string::npos ||
-+            font_family.find("Webdings") != std::string::npos) {
-+          base_probability = 0.02f; // Very low for symbol fonts
-+        } else if (font_family.length() > 20) {
-+          base_probability = 0.08f; // Lower for very long font names
-+        } else if (font_family.find(" ") != std::string::npos) {
-+          base_probability = 0.12f; // Moderate for fonts with spaces
-+        }
++        // Higher chance for common font characteristics
++        float threshold = 0.15f;
++        if (font_family.find("Sans") != std::string::npos) threshold = 0.20f;
++        if (font_family.find("Serif") != std::string::npos) threshold = 0.18f;
++        if (font_family.find("Mono") != std::string::npos) threshold = 0.12f;
 +        
-+        float probability = static_cast<float>(hash) / static_cast<float>(std::numeric_limits<uint32_t>::max());
-+        
-+        if (probability >= base_probability) {
-+          return nullptr;
-+        }
-+      } else {
-+        // Basic font - use fingerprint to determine availability
-+        uint32_t font_hash = fingerprint_hash ^ std::hash<std::string>{}(font_family);
-+        
-+        // Make some basic fonts unavailable based on fingerprint
-+        if ((font_family == "Comic Sans MS" && (font_hash % 5) < 3) ||
-+            (font_family == "Impact" && (font_hash % 4) < 2) ||
-+            (font_family == "Trebuchet MS" && (font_hash % 3) < 1)) {
++        if (probability >= threshold) {
 +          return nullptr;
 +        }
 +      }
