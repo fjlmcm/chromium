@@ -20,7 +20,7 @@ index b3a4c782c6..94b4ffbacb 100644
  #include "build/build_config.h"
  #include "skia/ext/font_utils.h"
  #include "third_party/blink/public/common/features.h"
-@@ -155,6 +158,48 @@ const FontPlatformData* FontCache::GetFontPlatformData(
+@@ -155,6 +158,32 @@ const FontPlatformData* FontCache::GetFontPlatformData(
      PlatformInit();
    }
  
@@ -28,41 +28,25 @@ index b3a4c782c6..94b4ffbacb 100644
 +  if (command_line->HasSwitch(switches::kFingerprint)) {
 +    if (creation_params.CreationType() == kCreateFontByFamily) {
 +      std::string font_family = creation_params.Family().Utf8();
++      std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
 +      
-+      // Define basic font whitelist for consistent fingerprinting
-+      static const char* allowed_fonts[] = {
++      // Simple font filtering based on fingerprint
++      static const char* common_fonts[] = {
 +        "Arial", "Times New Roman", "Courier New", "Verdana", "Georgia",
-+        "Tahoma", "Trebuchet MS", "Calibri", "Segoe UI", 
-+        "Microsoft YaHei", "SimSun"
++        "Tahoma", "Calibri", "Segoe UI", "Microsoft YaHei", "SimSun"
 +      };
 +      
-+      // Check if font is in whitelist
-+      bool is_allowed = false;
-+      for (const char* font : allowed_fonts) {
++      bool is_common = false;
++      for (const char* font : common_fonts) {
 +        if (font_family == font) {
-+          is_allowed = true;
++          is_common = true;
 +          break;
 +        }
 +      }
 +      
-+      if (!is_allowed) {
-+        // Get fingerprint seed for unknown fonts
-+        std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
-+        std::string combined = fingerprint + font_family;
-+        uint32_t hash = std::hash<std::string>{}(combined);
-+        
-+        // Use probability filtering for unknown fonts
-+        float probability = static_cast<float>(hash % 100) / 100.0f;
-+        
-+        // Higher chance for common font characteristics
-+        float threshold = 0.15f;
-+        if (font_family.find("Sans") != std::string::npos) threshold = 0.20f;
-+        if (font_family.find("Serif") != std::string::npos) threshold = 0.18f;
-+        if (font_family.find("Mono") != std::string::npos) threshold = 0.12f;
-+        
-+        if (probability >= threshold) {
-+          return nullptr;
-+        }
++      if (!is_common) {
++        uint32_t hash = std::hash<std::string>{}(fingerprint + font_family);
++        if ((hash % 100) >= 15) return nullptr;
 +      }
 +    }
 +  }
