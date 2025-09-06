@@ -1,0 +1,164 @@
+diff --git a/third_party/blink/common/user_agent/user_agent_metadata.cc b/third_party/blink/common/user_agent/user_agent_metadata.cc
+index 914e98fe96..869fd348b1 100644
+--- a/third_party/blink/common/user_agent/user_agent_metadata.cc
++++ b/third_party/blink/common/user_agent/user_agent_metadata.cc
+@@ -209,7 +209,34 @@ bool operator==(const UserAgentOverride& a, const UserAgentOverride& b) {
+ void UpdateUserAgentMetadataFingerprint(blink::UserAgentMetadata* metadata) {
+   if (!metadata)
+     return;
+-    
++
++  // 各浏览器默认版本配置
++  std::string default_chrome_version = metadata->full_version;
++  std::string default_edge_version = "136.0.3240.92";
++  std::string default_opera_version = "120.0.5516.0";
++  std::string default_vivaldi_version = "7.4.3684.38";
++
++  // 从现有列表中提取 not_a_brand 和 chromium 信息
++  std::string not_a_brand;
++  std::string not_a_brand_version;
++  std::string not_a_brand_full_version;
++  std::string chromium_brand = "Chromium";
++  std::string chromium_main_version;
++  std::string chromium_full_version;
++
++  // 从现有的 brand_full_version_list 中提取信息
++  for (const auto& brand_info : metadata->brand_full_version_list) {
++    if (brand_info.brand.find("Not") != std::string::npos &&
++        brand_info.brand.find("Brand") != std::string::npos) {
++      not_a_brand = brand_info.brand;
++      not_a_brand_full_version = brand_info.version;
++      not_a_brand_version = brand_info.version.substr(0, brand_info.version.find('.'));
++    } else if (brand_info.brand == "Chromium") {
++      chromium_full_version = brand_info.version;
++      chromium_main_version = brand_info.version.substr(0, brand_info.version.find('.'));
++    }
++  }
++
+   const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
+   
+   // Handle brand information
+@@ -217,15 +244,6 @@ void UpdateUserAgentMetadataFingerprint(blink::UserAgentMetadata* metadata) {
+   std::string version;
+   std::string main_version;
+   
+-  // 查找原列表中的 Not-A.Brand 信息（用于保持一致性）
+-  std::string not_a_brand = "Not.A/Brand";
+-  std::string not_a_brand_version = "99";
+-  std::string not_a_brand_full_version = "99.0.0.0";
+-  
+-  // 保存 Chromium 信息
+-  std::string chromium_main_version = "";
+-  std::string chromium_version = "";
+-  
+   if (command_line->HasSwitch(switches::kFingerprintBrand)) {
+     std::string custom_brand = command_line->GetSwitchValueASCII(switches::kFingerprintBrand);
+     std::string custom_version = command_line->HasSwitch(switches::kFingerprintBrandVersion)
+@@ -233,54 +251,47 @@ void UpdateUserAgentMetadataFingerprint(blink::UserAgentMetadata* metadata) {
+         : "";
+         
+     if (custom_brand == "Chrome") {
+-      // Chrome需要改变Chromium的版本号,否则会导致版本号不匹配
+       display_brand = "Google Chrome";
+-      version = custom_version.empty() ? metadata->full_version : custom_version;
+-      // 更新 Chromium 版本号以匹配
+-      chromium_version = version;
++      version = custom_version.empty() ? default_chrome_version : custom_version;
++      // Chrome时，Chromium版本必须与Chrome保持一致
++      chromium_full_version = version;
+     } else if (custom_brand == "Edge") {
+       display_brand = "Microsoft Edge";
+-      version = custom_version.empty() ? "136.0.3240.92" : custom_version;
++      version = custom_version.empty() ? default_edge_version : custom_version;
+     } else if (custom_brand == "Opera") {
+       display_brand = "Opera";
+-      version = custom_version.empty() ? "120.0.5516.0" : custom_version;
++      version = custom_version.empty() ? default_opera_version : custom_version;
+     } else if (custom_brand == "Vivaldi") {
+       display_brand = "Vivaldi";
+-      version = custom_version.empty() ? "7.4.3684.38" : custom_version;
++      version = custom_version.empty() ? default_vivaldi_version : custom_version;
+     } else {
+       display_brand = custom_brand;
+-      version = custom_version.empty() ? metadata->full_version : custom_version;
++      version = custom_version.empty() ? default_chrome_version : custom_version;
+     }
+   } else {
+     display_brand = "Google Chrome";
+-    version = metadata->full_version;
++    version = default_chrome_version;
++    // 默认Chrome时，Chromium版本与Chrome保持一致
++    chromium_full_version = version;
+   }
+   
+   // 提取主版本号（只计算一次）
+   main_version = version.substr(0, version.find('.'));
+   
+-  // 如果是Chrome，设置Chromium的版本号
+-  if (display_brand == "Google Chrome") {
+-    chromium_main_version = main_version;
+-    if (chromium_version.empty()) {
+-      chromium_version = version;
+-    }
+-  }
+-  
+-  // 更新品牌顺序列表
++  // 提取主版本号
++  main_version = version.substr(0, version.find('.'));
++
++  // 更新品牌列表
+   // Chrome 136顺序: Chromium, Google Chrome, Not.A/Brand
+   metadata->brand_version_list.clear();
+   metadata->brand_full_version_list.clear();
+-  
+-  // 1. 首先添加 Chromium
+-  metadata->brand_version_list.push_back({"Chromium", chromium_main_version});
+-  metadata->brand_full_version_list.push_back({"Chromium", chromium_version});
+-  
+-  // 2. 然后添加主品牌 (Google Chrome)
++
++  metadata->brand_version_list.push_back({chromium_brand, chromium_main_version});
++  metadata->brand_full_version_list.push_back({chromium_brand, chromium_full_version});
++
+   metadata->brand_version_list.push_back({display_brand, main_version});
+   metadata->brand_full_version_list.push_back({display_brand, version});
+-  
+-  // 3. 最后添加 Not.A/Brand
++
+   metadata->brand_version_list.push_back({not_a_brand, not_a_brand_version});
+   metadata->brand_full_version_list.push_back({not_a_brand, not_a_brand_full_version});
+   
+@@ -313,9 +324,13 @@ void UpdateUserAgentMetadataFingerprint(blink::UserAgentMetadata* metadata) {
+ }
+ 
+ std::string GetUserAgentFingerprintBrandInfo() {
++  // 固定值配置 - 统一修改版本号
++  std::string default_edge_version = "136.0.0.0";
++  std::string default_opera_version = "120.0.0.0";
++  std::string default_vivaldi_version = "7.4.3684.38";
++
+   const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
+ 
+-  // 如果没有设置品牌参数，返回空字符串
+   if (!command_line->HasSwitch(switches::kFingerprintBrand)) {
+     return "";
+   }
+@@ -325,15 +340,14 @@ std::string GetUserAgentFingerprintBrandInfo() {
+       ? command_line->GetSwitchValueASCII(switches::kFingerprintBrandVersion)
+       : "";
+ 
+-  // 根据不同品牌处理
+   if (brand == "Chrome") {
+     return "";
+   } else if (brand == "Edge") {
+-    return " Edg/" + (version.empty() ? "136.0.3240.92" : version);
++    return " Edg/" + (version.empty() ? default_edge_version : version);
+   } else if (brand == "Opera") {
+-    return " OPR/" + (version.empty() ? "120.0.0.0" : version);
++    return " OPR/" + (version.empty() ? default_opera_version : version);
+   } else if (brand == "Vivaldi") {
+-    return " Vivaldi/" + (version.empty() ? "7.4.3684.38" : version);
++    return " Vivaldi/" + (version.empty() ? default_vivaldi_version : version);
+   } else if (!brand.empty()) {
+     return " " + brand + "/" + (version.empty() ? brand : version);
+   }

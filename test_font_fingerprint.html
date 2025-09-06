@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Font Fingerprint Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .font-test {
+            margin: 10px 0;
+            padding: 5px;
+            background: #f5f5f5;
+        }
+        .results {
+            background: #e7f3ff;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+        }
+        canvas {
+            border: 1px solid #ddd;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Font Fingerprinting Test Suite</h1>
+    
+    <div class="test-section">
+        <h2>1. Font Availability Detection</h2>
+        <div id="fontAvailability" class="results">
+            Testing font availability...
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Font Rendering Metrics</h2>
+        <canvas id="fontCanvas" width="400" height="200"></canvas>
+        <div id="fontMetrics" class="results">
+            Measuring font metrics...
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. System Font Enumeration (if supported)</h2>
+        <button onclick="testFontAccess()">Test Font Access API</button>
+        <div id="fontEnumeration" class="results">
+            Click button to test font enumeration...
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. CSS Font Detection</h2>
+        <div id="cssDetection" class="results">
+            Testing CSS font detection...
+        </div>
+    </div>
+
+    <script>
+        // Font fingerprinting test functions
+        
+        // 1. Test font availability using canvas measureText
+        function testFontAvailability() {
+            const testFonts = [
+                'Arial', 'Times New Roman', 'Courier New', 'Verdana', 'Georgia',
+                'Tahoma', 'Trebuchet MS', 'Comic Sans MS', 'Impact', 'Arial Black',
+                'Calibri', 'Cambria', 'Consolas', 'Segoe UI', 'Century Gothic',
+                'Franklin Gothic Medium', 'Lucida Console', 'Palatino Linotype',
+                'Microsoft Sans Serif', 'MS Sans Serif', 'MS Serif',
+                'Microsoft YaHei', 'SimSun', 'NSimSun', 'SimHei', 'FangSong',
+                'KaiTi', 'Microsoft JhengHei', 'PMingLiU', 'MingLiU',
+                'Helvetica', 'Helvetica Neue', 'San Francisco', 'Avenir',
+                'Futura', 'Gill Sans', 'Optima', 'Palatino', 'Baskerville',
+                'DejaVu Sans', 'Ubuntu', 'Liberation Sans', 'Droid Sans'
+            ];
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const testText = 'ABCDEFGabcdefg123!@#$%^&*()';
+            
+            // Baseline measurement with default font
+            ctx.font = '16px monospace';
+            const baseWidth = ctx.measureText(testText).width;
+            
+            const availableFonts = [];
+            const detectedFonts = [];
+            
+            testFonts.forEach(font => {
+                ctx.font = `16px "${font}", monospace`;
+                const width = ctx.measureText(testText).width;
+                
+                if (width !== baseWidth) {
+                    availableFonts.push(font);
+                    detectedFonts.push({
+                        font: font,
+                        width: width,
+                        difference: Math.abs(width - baseWidth)
+                    });
+                }
+            });
+            
+            const resultDiv = document.getElementById('fontAvailability');
+            resultDiv.innerHTML = `
+                <strong>Detected Fonts (${availableFonts.length}):</strong><br>
+                ${availableFonts.join(', ')}<br><br>
+                <strong>Detailed Measurements:</strong><br>
+                ${detectedFonts.map(f => `${f.font}: ${f.width}px (diff: ${f.difference})`).join('<br>')}
+            `;
+            
+            return availableFonts;
+        }
+        
+        // 2. Test font rendering on canvas
+        function testFontRendering() {
+            const canvas = document.getElementById('fontCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const testFonts = ['Arial', 'Times New Roman', 'Verdana', 'Georgia'];
+            const testText = 'Font Test Äöü 测试';
+            
+            let y = 30;
+            const metrics = [];
+            
+            testFonts.forEach((font, index) => {
+                ctx.font = `20px "${font}"`;
+                ctx.fillStyle = '#333';
+                ctx.fillText(`${font}: ${testText}`, 10, y);
+                
+                const textMetrics = ctx.measureText(testText);
+                metrics.push({
+                    font: font,
+                    width: textMetrics.width,
+                    actualBoundingBoxAscent: textMetrics.actualBoundingBoxAscent,
+                    actualBoundingBoxDescent: textMetrics.actualBoundingBoxDescent,
+                    fontBoundingBoxAscent: textMetrics.fontBoundingBoxAscent,
+                    fontBoundingBoxDescent: textMetrics.fontBoundingBoxDescent
+                });
+                
+                y += 35;
+            });
+            
+            const metricsDiv = document.getElementById('fontMetrics');
+            metricsDiv.innerHTML = `
+                <strong>Font Rendering Metrics:</strong><br>
+                ${metrics.map(m => 
+                    `<div style="margin: 5px 0;">
+                        <strong>${m.font}:</strong> width=${m.width.toFixed(2)}, 
+                        ascent=${(m.actualBoundingBoxAscent || 0).toFixed(2)}, 
+                        descent=${(m.actualBoundingBoxDescent || 0).toFixed(2)}
+                    </div>`
+                ).join('')}
+            `;
+        }
+        
+        // 3. Test Font Access API (if available)
+        async function testFontAccess() {
+            const resultDiv = document.getElementById('fontEnumeration');
+            
+            if ('queryLocalFonts' in window) {
+                try {
+                    const availableFonts = await window.queryLocalFonts();
+                    const fontNames = availableFonts.map(font => font.family).sort();
+                    const uniqueFonts = [...new Set(fontNames)];
+                    
+                    resultDiv.innerHTML = `
+                        <strong>Font Access API Results:</strong><br>
+                        Total fonts: ${availableFonts.length}<br>
+                        Unique families: ${uniqueFonts.length}<br>
+                        <strong>Font families:</strong><br>
+                        ${uniqueFonts.slice(0, 50).join(', ')}
+                        ${uniqueFonts.length > 50 ? `... and ${uniqueFonts.length - 50} more` : ''}
+                    `;
+                } catch (error) {
+                    resultDiv.innerHTML = `<strong>Font Access API Error:</strong> ${error.message}`;
+                }
+            } else {
+                resultDiv.innerHTML = '<strong>Font Access API:</strong> Not supported in this browser';
+            }
+        }
+        
+        // 4. Test CSS-based font detection
+        function testCSSDetection() {
+            const testFonts = [
+                'Arial', 'Times New Roman', 'Verdana', 'Georgia', 'Tahoma',
+                'Trebuchet MS', 'Comic Sans MS', 'Impact', 'Calibri', 'Segoe UI'
+            ];
+            
+            const testDiv = document.createElement('div');
+            testDiv.style.position = 'absolute';
+            testDiv.style.left = '-9999px';
+            testDiv.style.fontSize = '16px';
+            testDiv.style.lineHeight = '1';
+            testDiv.innerHTML = 'Test Text 测试文本';
+            document.body.appendChild(testDiv);
+            
+            // Baseline with default fonts
+            testDiv.style.fontFamily = 'serif';
+            const serifWidth = testDiv.offsetWidth;
+            const serifHeight = testDiv.offsetHeight;
+            
+            testDiv.style.fontFamily = 'sans-serif';
+            const sansSerifWidth = testDiv.offsetWidth;
+            const sansSerifHeight = testDiv.offsetHeight;
+            
+            const detectedFonts = [];
+            
+            testFonts.forEach(font => {
+                testDiv.style.fontFamily = `"${font}", serif`;
+                const serifTestWidth = testDiv.offsetWidth;
+                const serifTestHeight = testDiv.offsetHeight;
+                
+                testDiv.style.fontFamily = `"${font}", sans-serif`;
+                const sansSerifTestWidth = testDiv.offsetWidth;
+                const sansSerifTestHeight = testDiv.offsetHeight;
+                
+                if ((serifTestWidth !== serifWidth || serifTestHeight !== serifHeight) ||
+                    (sansSerifTestWidth !== sansSerifWidth || sansSerifTestHeight !== sansSerifHeight)) {
+                    detectedFonts.push({
+                        font: font,
+                        serifWidth: serifTestWidth,
+                        sansSerifWidth: sansSerifTestWidth
+                    });
+                }
+            });
+            
+            document.body.removeChild(testDiv);
+            
+            const resultDiv = document.getElementById('cssDetection');
+            resultDiv.innerHTML = `
+                <strong>CSS Font Detection Results:</strong><br>
+                Detected fonts (${detectedFonts.length}): ${detectedFonts.map(f => f.font).join(', ')}<br>
+                <strong>Baseline measurements:</strong><br>
+                serif: ${serifWidth}x${serifHeight}px, sans-serif: ${sansSerifWidth}x${sansSerifHeight}px
+            `;
+        }
+        
+        // Run tests when page loads
+        window.addEventListener('load', function() {
+            testFontAvailability();
+            testFontRendering();
+            testCSSDetection();
+        });
+        
+        // Generate fingerprint hash
+        function generateFontFingerprint() {
+            const fontData = {
+                availableFonts: testFontAvailability(),
+                canvasMetrics: document.getElementById('fontMetrics').textContent,
+                cssDetection: document.getElementById('cssDetection').textContent
+            };
+            
+            const fingerprint = JSON.stringify(fontData);
+            const hash = btoa(fingerprint).substring(0, 16);
+            
+            console.log('Font Fingerprint Hash:', hash);
+            console.log('Raw Font Data:', fontData);
+            
+            return hash;
+        }
+        
+        // Add fingerprint generation button
+        window.addEventListener('load', function() {
+            const button = document.createElement('button');
+            button.textContent = 'Generate Font Fingerprint';
+            button.onclick = generateFontFingerprint;
+            button.style.margin = '20px 0';
+            button.style.padding = '10px 20px';
+            button.style.fontSize = '16px';
+            document.body.appendChild(button);
+        });
+    </script>
+</body>
+</html>

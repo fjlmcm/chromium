@@ -1,0 +1,170 @@
+diff --git a/third_party/blink/renderer/platform/fonts/font_family_names.cc b/third_party/blink/renderer/platform/fonts/font_family_names.cc
+index 1234567890..9876543210 100644
+--- a/third_party/blink/renderer/platform/fonts/font_family_names.cc
++++ b/third_party/blink/renderer/platform/fonts/font_family_names.cc
+@@ -4,6 +4,9 @@
+ 
+ #include "third_party/blink/renderer/platform/fonts/font_family_names.h"
+ 
++#include "base/command_line.h"
++#include "components/ungoogled/ungoogled_switches.h"
++
+ namespace blink {
+ namespace font_family_names {
+ 
+@@ -42,4 +45,92 @@ const AtomicString& kWebkitZoom = g_webkit_zoom;
+ const AtomicString& kWebkitSmallCaps = g_webkit_small_caps;
+ const AtomicString& kWebkitFontFeatureSettings = g_webkit_font_feature_settings;
+ 
++// Font virtualization for fingerprint resistance
++AtomicString GetVirtualizedFontFamily(const AtomicString& requested_family) {
++  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
++  if (!command_line->HasSwitch(switches::kFingerprint)) {
++    return requested_family;
++  }
++
++  std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
++  uint32_t fingerprint_hash = std::hash<std::string>{}(fingerprint);
++  
++  // Define font virtualization mapping based on fingerprint
++  static const struct FontMapping {
++    const char* virtual_name;
++    const char* real_name;
++    uint32_t hash_range_start;
++    uint32_t hash_range_end;
++  } font_mappings[] = {
++    // Professional fonts virtualization (hash range 0-20%)
++    {"Adobe Garamond Pro", "Times New Roman", 0, UINT32_MAX / 5},
++    {"Minion Pro", "Georgia", 0, UINT32_MAX / 5},
++    {"Myriad Pro", "Arial", 0, UINT32_MAX / 5},
++    {"Proxima Nova", "Helvetica", 0, UINT32_MAX / 5},
++    
++    // Creative fonts virtualization (hash range 20-40%)
++    {"Futura", "Arial", UINT32_MAX / 5, (UINT32_MAX * 2) / 5},
++    {"Avant Garde", "Verdana", UINT32_MAX / 5, (UINT32_MAX * 2) / 5},
++    {"Gotham", "Arial", UINT32_MAX / 5, (UINT32_MAX * 2) / 5},
++    {"Trajan Pro", "Times New Roman", UINT32_MAX / 5, (UINT32_MAX * 2) / 5},
++    
++    // Web fonts virtualization (hash range 40-60%)
++    {"Montserrat", "Arial", (UINT32_MAX * 2) / 5, (UINT32_MAX * 3) / 5},
++    {"Lora", "Georgia", (UINT32_MAX * 2) / 5, (UINT32_MAX * 3) / 5},
++    {"Playfair Display", "Times New Roman", (UINT32_MAX * 2) / 5, (UINT32_MAX * 3) / 5},
++    {"Source Code Pro", "Courier New", (UINT32_MAX * 2) / 5, (UINT32_MAX * 3) / 5},
++    
++    // Specialized fonts virtualization (hash range 60-80%)
++    {"Avenir", "Helvetica", (UINT32_MAX * 3) / 5, (UINT32_MAX * 4) / 5},
++    {"Frutiger", "Arial", (UINT32_MAX * 3) / 5, (UINT32_MAX * 4) / 5},
++    {"Univers", "Helvetica", (UINT32_MAX * 3) / 5, (UINT32_MAX * 4) / 5},
++    {"Optima", "Arial", (UINT32_MAX * 3) / 5, (UINT32_MAX * 4) / 5},
++    
++    // Luxury/Premium fonts virtualization (hash range 80-100%)
++    {"Didot", "Times New Roman", (UINT32_MAX * 4) / 5, UINT32_MAX},
++    {"Bodoni", "Georgia", (UINT32_MAX * 4) / 5, UINT32_MAX},
++    {"Caslon", "Times New Roman", (UINT32_MAX * 4) / 5, UINT32_MAX},
++    {"Gill Sans", "Arial", (UINT32_MAX * 4) / 5, UINT32_MAX},
++  };
++  
++  // Check if this is a request for a virtual font
++  std::string requested_family_str = requested_family.Utf8();
++  for (const auto& mapping : font_mappings) {
++    if (requested_family_str == mapping.virtual_name) {
++      // Check if this virtual font should be available based on fingerprint
++      if (fingerprint_hash >= mapping.hash_range_start && 
++          fingerprint_hash < mapping.hash_range_end) {
++        return AtomicString(mapping.real_name);
++      }
++      // Virtual font not available for this fingerprint
++      return AtomicString();
++    }
++  }
++  
++  return requested_family;
++}
++
++// Enhanced font enumeration for fingerprint resistance
++std::vector<AtomicString> GetAvailableFontList() {
++  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
++  std::vector<AtomicString> available_fonts;
++  
++  // Always include basic system fonts
++  available_fonts.push_back(AtomicString("Arial"));
++  available_fonts.push_back(AtomicString("Times New Roman"));
++  available_fonts.push_back(AtomicString("Courier New"));
++  available_fonts.push_back(AtomicString("Verdana"));
++  available_fonts.push_back(AtomicString("Georgia"));
++  
++  if (command_line->HasSwitch(switches::kFingerprint)) {
++    std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
++    uint32_t fingerprint_hash = std::hash<std::string>{}(fingerprint);
++    
++    // Add fonts based on fingerprint hash ranges
++    // This creates consistent but varied font lists across different fingerprints
++    if (fingerprint_hash % 10 < 3) available_fonts.push_back(AtomicString("Tahoma"));
++    if (fingerprint_hash % 10 < 5) available_fonts.push_back(AtomicString("Calibri"));
++    if (fingerprint_hash % 10 < 7) available_fonts.push_back(AtomicString("Trebuchet MS"));
++    if (fingerprint_hash % 10 < 4) available_fonts.push_back(AtomicString("Comic Sans MS"));
++    if (fingerprint_hash % 10 < 6) available_fonts.push_back(AtomicString("Impact"));
++    
++    // Add CJK fonts based on fingerprint
++    if (fingerprint_hash % 8 < 3) available_fonts.push_back(AtomicString("Microsoft YaHei"));
++    if (fingerprint_hash % 8 < 5) available_fonts.push_back(AtomicString("SimSun"));
++  }
++  
++  return available_fonts;
++}
++
+ }  // namespace font_family_names
+ }  // namespace blink
+diff --git a/third_party/blink/renderer/platform/fonts/font_family_names.h b/third_party/blink/renderer/platform/fonts/font_family_names.h
+index abcd123456..efgh789012 100644
+--- a/third_party/blink/renderer/platform/fonts/font_family_names.h
++++ b/third_party/blink/renderer/platform/fonts/font_family_names.h
+@@ -5,6 +5,8 @@
+ #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_FONTS_FONT_FAMILY_NAMES_H_
+ #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_FONTS_FONT_FAMILY_NAMES_H_
+ 
++#include <vector>
++
+ #include "third_party/blink/renderer/platform/platform_export.h"
+ #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
+ 
+@@ -43,6 +45,12 @@ PLATFORM_EXPORT extern const AtomicString& kWebkitZoom;
+ PLATFORM_EXPORT extern const AtomicString& kWebkitSmallCaps;
+ PLATFORM_EXPORT extern const AtomicString& kWebkitFontFeatureSettings;
+ 
++// Font virtualization functions for fingerprint resistance
++PLATFORM_EXPORT AtomicString GetVirtualizedFontFamily(const AtomicString& requested_family);
++PLATFORM_EXPORT std::vector<AtomicString> GetAvailableFontList();
++
+ }  // namespace font_family_names
+ }  // namespace blink
+ 
+ #endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_FONTS_FONT_FAMILY_NAMES_H_
+diff --git a/third_party/blink/renderer/core/css/resolver/font_builder.cc b/third_party/blink/renderer/core/css/resolver/font_builder.cc
+index 1111222233..4444555566 100644
+--- a/third_party/blink/renderer/core/css/resolver/font_builder.cc
++++ b/third_party/blink/renderer/core/css/resolver/font_builder.cc
+@@ -12,6 +12,7 @@
+ #include "third_party/blink/renderer/core/css/css_font_family_value.h"
+ #include "third_party/blink/renderer/core/css/css_to_length_conversion_data.h"
+ #include "third_party/blink/renderer/platform/fonts/font_description.h"
++#include "third_party/blink/renderer/platform/fonts/font_family_names.h"
+ 
+ namespace blink {
+ 
+@@ -142,6 +143,11 @@ void FontBuilder::SetFamilyDescription(
+   for (unsigned i = 0; i < family_list.size(); ++i) {
+     const CSSValue& item = family_list.Item(i);
+     const auto* family_value = DynamicTo<CSSFontFamilyValue>(item);
++    
++    // Apply font virtualization for fingerprint resistance
++    if (family_value && family_value->IsFamilyName()) {
++      AtomicString virtualized = font_family_names::GetVirtualizedFontFamily(family_value->Value());
++      if (!virtualized.empty() && virtualized != family_value->Value()) {
+         description.FirstFamily().SetFamily(virtualized, FontFamily::kFamilyName);
+         continue;
+       }
++    }
+     
+     if (!family_value)
+       continue;

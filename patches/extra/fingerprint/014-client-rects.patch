@@ -1,0 +1,117 @@
+diff --git a/third_party/blink/renderer/core/dom/document.cc b/third_party/blink/renderer/core/dom/document.cc
+index 3a10548d3f..76c494dfd2 100644
+--- a/third_party/blink/renderer/core/dom/document.cc
++++ b/third_party/blink/renderer/core/dom/document.cc
+@@ -35,6 +35,7 @@
+ #include <utility>
+ 
+ #include "base/auto_reset.h"
++#include "base/command_line.h"
+ #include "base/containers/adapters.h"
+ #include "base/containers/contains.h"
+ #include "base/debug/dump_without_crashing.h"
+@@ -50,6 +51,7 @@
+ #include "cc/animation/animation_timeline.h"
+ #include "cc/input/overscroll_behavior.h"
+ #include "cc/input/scroll_snap_data.h"
++#include "components/ungoogled/ungoogled_switches.h"
+ #include "mojo/public/cpp/bindings/pending_remote.h"
+ #include "mojo/public/cpp/bindings/remote.h"
+ #include "mojo/public/mojom/base/text_direction.mojom-blink.h"
+@@ -870,10 +872,23 @@ Document::Document(const DocumentInit& initializer,
+   TRACE_EVENT_WITH_FLOW0("blink", "Document::Document", TRACE_ID_LOCAL(this),
+                          TRACE_EVENT_FLAG_FLOW_OUT);
+   DCHECK(agent_);
+-  if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled()) {
+-    // Precompute -0.0003% to 0.0003% noise factor for get*ClientRect*() fingerprinting
+-    noise_factor_x_ = 1 + (base::RandDouble() - 0.5) * 0.000003;
+-    noise_factor_y_ = 1 + (base::RandDouble() - 0.5) * 0.000003;
++    const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
++  if (command_line->HasSwitch(switches::kFingerprint)) {
++    std::string seed_str = command_line->GetSwitchValueASCII(switches::kFingerprint);
++    // 为x和y使用不同的组合字符串
++    std::string combined_x = seed_str + "canvas_noise_x";
++    std::string combined_y = seed_str + "canvas_noise_y";
++
++    uint32_t hash_val_x = std::hash<std::string>{}(combined_x);
++    uint32_t hash_val_y = std::hash<std::string>{}(combined_y);
++
++    // 映射到[-0.5, 0.5]范围
++    double norm_x = (hash_val_x & 0xFFFFFFFF) / 4294967295.0 - 0.5;
++    double norm_y = (hash_val_y & 0xFFFFFFFF) / 4294967295.0 - 0.5;
++
++    // 计算噪声因子
++    noise_factor_x_ = 1.0 + norm_x * 0.000003;
++    noise_factor_y_ = 1.0 + norm_y * 0.000003;
+   }
+   if (base::FeatureList::IsEnabled(features::kDelayAsyncScriptExecution) &&
+       features::kDelayAsyncScriptExecutionDelayByDefaultParam.Get()) {
+diff --git a/third_party/blink/renderer/core/dom/element.cc b/third_party/blink/renderer/core/dom/element.cc
+index 7638ecc457..ea51bb5e04 100644
+--- a/third_party/blink/renderer/core/dom/element.cc
++++ b/third_party/blink/renderer/core/dom/element.cc
+@@ -32,9 +32,11 @@
+ #include <memory>
+ #include <utility>
+ 
++#include "base/command_line.h"
+ #include "base/containers/adapters.h"
+ #include "base/feature_list.h"
+ #include "cc/input/snap_selection_strategy.h"
++#include "components/ungoogled/ungoogled_switches.h"
+ #include "third_party/blink/public/common/features.h"
+ #include "third_party/blink/public/common/privacy_budget/identifiability_metric_builder.h"
+ #include "third_party/blink/public/common/privacy_budget/identifiability_study_settings.h"
+@@ -2836,7 +2838,8 @@ DOMRectList* Element::getClientRects() {
+   DCHECK(element_layout_object);
+   GetDocument().AdjustQuadsForScrollAndAbsoluteZoom(quads,
+                                                     *element_layout_object);
+-  if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled()) {
++  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
++  if (command_line->HasSwitch(switches::kFingerprint)) {
+     for (gfx::QuadF& quad : quads) {
+       quad.Scale(GetDocument().GetNoiseFactorX(), GetDocument().GetNoiseFactorY());
+     }
+@@ -2868,7 +2871,8 @@ gfx::RectF Element::GetBoundingClientRectNoLifecycleUpdate() const {
+   DCHECK(element_layout_object);
+   GetDocument().AdjustRectForScrollAndAbsoluteZoom(result,
+                                                    *element_layout_object);
+-  if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled()) {
++  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
++  if (command_line->HasSwitch(switches::kFingerprint)) {
+     result.Scale(GetDocument().GetNoiseFactorX(), GetDocument().GetNoiseFactorY());
+   }
+   return result;
+diff --git a/third_party/blink/renderer/core/dom/range.cc b/third_party/blink/renderer/core/dom/range.cc
+index c25a3704b6..1721d6e922 100644
+--- a/third_party/blink/renderer/core/dom/range.cc
++++ b/third_party/blink/renderer/core/dom/range.cc
+@@ -23,6 +23,8 @@
+  * Boston, MA 02110-1301, USA.
+  */
+ 
++#include "base/command_line.h"
++#include "components/ungoogled/ungoogled_switches.h"
+ #include "third_party/blink/renderer/core/dom/range.h"
+ 
+ #include "third_party/blink/renderer/core/display_lock/display_lock_document_state.h"
+@@ -1634,7 +1636,8 @@ DOMRectList* Range::getClientRects() const {
+   Vector<gfx::QuadF> quads;
+   GetBorderAndTextQuads(quads);
+ 
+-  if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled()) {
++  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
++  if (command_line->HasSwitch(switches::kFingerprint)) {
+     for (gfx::QuadF& quad : quads) {
+       quad.Scale(owner_document_->GetNoiseFactorX(), owner_document_->GetNoiseFactorY());
+     }
+@@ -1648,7 +1651,8 @@ DOMRect* Range::getBoundingClientRect() const {
+   // impact is understood.
+   SyncScrollAttemptHeuristic::DidAccessScrollOffset();
+   auto rect = BoundingRect();
+-  if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled()) {
++  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
++  if (command_line->HasSwitch(switches::kFingerprint)) {
+     rect.Scale(owner_document_->GetNoiseFactorX(), owner_document_->GetNoiseFactorY());
+   }
+   return DOMRect::FromRectF(rect);
