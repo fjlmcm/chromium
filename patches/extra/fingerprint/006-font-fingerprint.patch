@@ -30,7 +30,7 @@ index b3a4c782c6..94b4ffbacb 100644
  const FontPlatformData* FontCache::GetFontPlatformData(
      const FontDescription& font_description,
      const FontFaceCreationParams& creation_params,
-@@ -155,6 +161,118 @@ const FontPlatformData* FontCache::GetFontPlatformData(
+@@ -155,6 +161,68 @@ const FontPlatformData* FontCache::GetFontPlatformData(
      PlatformInit();
    }
  
@@ -39,90 +39,33 @@ index b3a4c782c6..94b4ffbacb 100644
 +    if (creation_params.CreationType() == kCreateFontByFamily) {
 +      std::string font_family = creation_params.Family().Utf8();
 +      
-+      // Define comprehensive font categories with platform-specific variations
-+      static const std::vector<std::vector<std::string>> font_categories = {
-+        // Essential system fonts (always available)
-+        {"Arial", "Helvetica", "sans-serif"},
-+        {"Times New Roman", "Times", "serif"},
-+        {"Courier New", "Courier", "monospace"},
-+        
-+        // Common Windows fonts
-+        {"Verdana", "Geneva"},
-+        {"Georgia", "Times"},
-+        {"Tahoma", "Arial"},
-+        {"Trebuchet MS", "Helvetica"},
-+        {"Comic Sans MS", "Arial"},
-+        
-+        // Office and professional fonts
-+        {"Calibri", "Arial"},
-+        {"Cambria", "Times New Roman"},
-+        {"Consolas", "Courier New"},
-+        {"Segoe UI", "Arial"},
-+        
-+        // Web fonts and alternatives
-+        {"Open Sans", "Arial"},
-+        {"Roboto", "Arial"},
-+        {"Source Sans Pro", "Arial"},
-+        {"Lato", "Arial"},
-+        
-+        // CJK fonts for international support
-+        {"Microsoft YaHei", "SimSun", "Arial Unicode MS"},
-+        {"SimSun", "Microsoft YaHei"},
-+        {"NSimSun", "SimSun"},
-+        {"Microsoft JhengHei", "Microsoft YaHei"},
-+        {"Meiryo", "Arial Unicode MS"},
-+        {"Yu Gothic", "Meiryo"},
-+        
-+        // macOS fonts (for cross-platform consistency)
-+        {"San Francisco", "Helvetica Neue", "Arial"},
-+        {"Helvetica Neue", "Helvetica", "Arial"},
-+        {"Apple SD Gothic Neo", "Arial Unicode MS"},
-+        
-+        // Linux fonts
-+        {"DejaVu Sans", "Arial"},
-+        {"Ubuntu", "Arial"},
-+        {"Liberation Sans", "Arial"},
-+        {"Droid Sans", "Arial"},
++      // Define basic font list for consistent fingerprinting
++      static const char* basic_fonts[] = {
++        "Arial", "Times New Roman", "Courier New", "Verdana", "Georgia",
++        "Tahoma", "Trebuchet MS", "Comic Sans MS", "Impact", "Calibri",
++        "Cambria", "Consolas", "Segoe UI", "Microsoft YaHei", "SimSun"
 +      };
 +      
-+      // Check if font belongs to any category
-+      int font_category_index = -1;
-+      int font_position_in_category = -1;
-+      
-+      for (size_t cat_idx = 0; cat_idx < font_categories.size(); ++cat_idx) {
-+        const auto& category = font_categories[cat_idx];
-+        for (size_t font_idx = 0; font_idx < category.size(); ++font_idx) {
-+          if (font_family == category[font_idx]) {
-+            font_category_index = static_cast<int>(cat_idx);
-+            font_position_in_category = static_cast<int>(font_idx);
-+            break;
-+          }
++      // Check if font is in basic list
++      bool is_basic_font = false;
++      for (const char* font : basic_fonts) {
++        if (font_family == font) {
++          is_basic_font = true;
++          break;
 +        }
-+        if (font_category_index != -1) break;
 +      }
 +      
 +      // Get fingerprint seed
 +      std::string fingerprint = command_line->GetSwitchValueASCII(switches::kFingerprint);
 +      uint32_t fingerprint_hash = std::hash<std::string>{}(fingerprint);
 +      
-+      if (font_category_index != -1) {
-+        // Font is in known category - use deterministic selection within category
-+        const auto& category = font_categories[font_category_index];
-+        uint32_t category_hash = fingerprint_hash ^ static_cast<uint32_t>(font_category_index);
-+        int selected_font_index = category_hash % category.size();
-+        
-+        // If requested font is not the selected one for this category, reject it
-+        if (font_position_in_category != selected_font_index) {
-+          return nullptr;
-+        }
-+      } else {
-+        // Unknown font - use probability-based filtering with improved distribution
++      if (!is_basic_font) {
++        // Unknown font - use probability-based filtering
 +        std::string combined = fingerprint + font_family;
 +        uint32_t hash = std::hash<std::string>{}(combined);
 +        
-+        // Use more sophisticated probability distribution
-+        // Common fonts: higher probability, Rare fonts: lower probability
-+        float base_probability = 0.15f; // Increased from 0.05 for better variety
++        // Use probability distribution based on font characteristics
++        float base_probability = 0.15f;
 +        
 +        // Adjust probability based on font name characteristics
 +        if (font_family.find("Symbol") != std::string::npos ||
@@ -138,6 +81,16 @@ index b3a4c782c6..94b4ffbacb 100644
 +        float probability = static_cast<float>(hash) / static_cast<float>(std::numeric_limits<uint32_t>::max());
 +        
 +        if (probability >= base_probability) {
++          return nullptr;
++        }
++      } else {
++        // Basic font - use fingerprint to determine availability
++        uint32_t font_hash = fingerprint_hash ^ std::hash<std::string>{}(font_family);
++        
++        // Make some basic fonts unavailable based on fingerprint
++        if ((font_family == "Comic Sans MS" && (font_hash % 5) < 3) ||
++            (font_family == "Impact" && (font_hash % 4) < 2) ||
++            (font_family == "Trebuchet MS" && (font_hash % 3) < 1)) {
 +          return nullptr;
 +        }
 +      }
